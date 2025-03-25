@@ -19,7 +19,6 @@ import java.util.UUID;
 @AllArgsConstructor
 public class OrderRequestDto {
 
-    @NotNull(message = "배송 ID는 필수 입력값입니다.")
     private UUID deliverId;
 
     @NotNull(message = "허브 ID는 필수 입력값입니다.")
