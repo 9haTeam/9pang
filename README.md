@@ -42,7 +42,7 @@ root 디렉토리에서 'docker-compose up --build' 명령어 실행
 
 - Backend: Java 17, Spring Boot 3.4, Spring Cloud (Eureka, Gateway, Feign)
 - Database: PostgreSQL, Redis
-- Infrastructure: Docker, Docker Compose, Kafka
+- Infrastructure: Docker, Docker Compose, Kafka, Zipkin
 - Communication: REST API, Event-driven architecture (Kafka)
 - Authentication: Spring Security, JWT
 - API Integration: Slack API
