@@ -108,11 +108,6 @@ public class DeliverController {
         return ResponseEntity.status(HttpStatus.OK).body(ResponseDto.success(deliverUserService.getDeliverSlackUserById(deliverId)));
     }
 
-    //통신테스트 Api
-    @GetMapping("/test")
-    public ResponseEntity<?> testUser() {
-        return ResponseEntity.status(HttpStatus.OK).body("Communication Test..");
-    }
 
 
 

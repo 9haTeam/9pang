@@ -42,7 +42,6 @@ public class UserController {
     }
 
 
-
     @PutMapping("/roles/{userId}") // 권한 수정(ADMIN)
     public ResponseEntity<?> updateRole(@PathVariable Long userId, @RequestBody RoleUpdateReqDto roleUpdateDto,HttpServletRequest request) {
         String userRole = request.getHeader("x-user-role");

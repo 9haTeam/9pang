@@ -18,9 +18,5 @@ public class GatewayApplication {
         SpringApplication.run(GatewayApplication.class, args);
     }
 
-//	// 명시적으로 JWT 필터 빈 등록
-//	@Bean
-//	public JwtAuthenticationFilter jwtAuthenticationFilter() {
-//		return new JwtAuthenticationFilter();
-//	}
+
 }
