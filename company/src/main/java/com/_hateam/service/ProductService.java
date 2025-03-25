@@ -5,9 +5,11 @@ import com._hateam.dto.HubDto;
 import com._hateam.dto.ProductDto;
 import com._hateam.dto.ProductRequestDto;
 import com._hateam.entity.Company;
+import com._hateam.entity.Hub;
 import com._hateam.entity.Product;
 import com._hateam.feign.HubController;
 import com._hateam.repository.CompanyRepository;
+import com._hateam.repository.HubRepository;
 import com._hateam.repository.ProductRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +34,8 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final CompanyRepository companyRepository; // Product의 소속 Company를 조회하기 위해
     private final HubController hubController;
+    private final HubRepository hubRepository;
+
 
     @Transactional
     public ProductDto createProduct(ProductRequestDto requestDto) {
@@ -152,9 +156,12 @@ public class ProductService {
     }
 
     private void validateHubExists(UUID hubId) {
-        ResponseEntity<ResponseDto<HubDto>> response = hubController.getHub(hubId);
-        if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null || response.getBody().getData() == null) {
-            throw new EntityNotFoundException("관리 허브가 존재하지 않습니다. hubId: " + hubId);
-        }
+//        ResponseEntity<ResponseDto<HubDto>> response = hubController.getHub(hubId);
+//        if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null || response.getBody().getData() == null) {
+//            throw new EntityNotFoundException("관리 허브가 존재하지 않습니다. hubId: " + hubId);
+//        }
+//    }
+        Hub hub = hubRepository.findById(hubId)
+                .orElseThrow(() -> new EntityNotFoundException("관리 허브가 존재하지 않습니다. hubId: " + hubId));
     }
 }
