@@ -18,10 +18,10 @@ public interface CompanyClient {
     @GetMapping("/companies/{companyId}")
     ResponseDto<CompanyDto> getCompanyById(@PathVariable("companyId") UUID companyId);
 
-    @GetMapping("/companies/products/{productId}")
+    @GetMapping("/products/{productId}")
     ResponseDto<ProductDto> getProductById(@PathVariable("productId") UUID productId);
 
-    @PatchMapping("/companies/products/{productId}")
+    @PatchMapping("/products/{productId}")
     ResponseDto<ProductDto> updateProduct(
             @PathVariable("productId") UUID productId,
             @RequestBody ProductRequestDto requestDto);

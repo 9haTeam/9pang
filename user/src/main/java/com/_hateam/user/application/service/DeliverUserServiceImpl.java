@@ -1,24 +1,22 @@
 package com._hateam.user.application.service;
 
 import com._hateam.common.dto.ResponseDto;
-import com._hateam.common.exception.CustomForbiddenException;
 import com._hateam.common.exception.CustomNotFoundException;
 import com._hateam.user.application.dto.*;
 import com._hateam.user.domain.enums.DeliverType;
 import com._hateam.user.domain.enums.Status;
 import com._hateam.user.domain.model.DeliverAssignPointer;
 import com._hateam.user.domain.model.DeliverUser;
+import com._hateam.user.application.exception.CustomException;
 import com._hateam.user.infrastructure.feign.HubClient;
 import com._hateam.user.infrastructure.repository.DeliverAssignPointerRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import com._hateam.user.domain.model.User;
 import com._hateam.user.domain.repository.DeliverUserRepository;
 import com._hateam.user.domain.repository.UserRepository;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
@@ -66,7 +64,7 @@ public Page<DeliverUserResponseDto> searchDeliverUsersByName(String name, String
     else if (userRole.equals("DELIVERY")) {
         // 배송 담당자: 본인 정보만 조회 가능(이름이 일치하는 경우만)
         DeliverUser deliverUser = deliverUserRepository.findByUser_UserId(Long.parseLong(userId))
-                .orElseThrow(() -> new CustomNotFoundException("배송담당자 정보를 찾을 수 없습니다(D). ID: " + userId));
+                .orElseThrow(() -> new CustomException("배송담당자 정보를 찾을 수 없습니다(D). ID: " + userId));
 
         // 자신의 이름이 검색어를 포함하는 경우에만 결과 반환
         if (deliverUser.getName().contains(name)) {
@@ -77,7 +75,7 @@ public Page<DeliverUserResponseDto> searchDeliverUsersByName(String name, String
         }
     }
     else { // COMPANY의 경우
-        throw new CustomForbiddenException("배송담당자 정보에 접근할 권한이 없습니다.");
+        throw new CustomException("배송담당자 정보에 접근할 권한이 없습니다.");
     }
 
     return deliverUserPage.map(DeliverUserResponseDto::from);
@@ -96,13 +94,13 @@ public Page<DeliverUserResponseDto> searchDeliverUsersByName(String name, String
         //ADMIN 은 전부조회
         else if(userRole.equals("HUB")){
             searchMan= deliverUserRepository.findByUser_UserId(Long.parseLong(userId)).orElseThrow(
-                    () -> new CustomNotFoundException("허브 관리자 정보를 찾을 수 없습니다. ID를 등록해주세요 " + Long.parseLong(userId)));
+                    () -> new CustomException("허브 관리자 정보를 찾을 수 없습니다. ID를 등록해주세요 " + Long.parseLong(userId)));
             UUID hubId = searchMan.getHubId(); // 관리자의 허브 ID
             deliverUsers = deliverUserRepository.findByHubIdAndDeletedAtIsNull(hubId);
 
         }
         else {
-            throw new CustomForbiddenException("배송담당자 정보에 접근할 권한이 없습니다. Delivery는 단일조회를 이용해주세요");
+            throw new CustomException("배송담당자 정보에 접근할 권한이 없습니다. Delivery는 단일조회를 이용해주세요");
         }
 
         return deliverUsers.stream()
@@ -116,27 +114,27 @@ public Page<DeliverUserResponseDto> searchDeliverUsersByName(String name, String
     public DeliverUserResponseDto getDeliverUserById(UUID deliverId, String userId, String userRole) {
         // 권한 검증
         DeliverUser deliverUser = deliverUserRepository.findByDeliverId(deliverId)
-                .orElseThrow(() -> new CustomNotFoundException("배송담당자 정보를 찾을 수 없습니다(d). ID: " + deliverId));
+                .orElseThrow(() -> new CustomException("배송담당자 정보를 찾을 수 없습니다(d). ID: " + deliverId));
         DeliverUser searchMan = deliverUserRepository.findByUser_UserId(Long.parseLong(userId)).orElseThrow(
-                () -> new CustomNotFoundException("배송담당자가 아니기 때문에 조회불가합니다. ID: " + Long.parseLong(userId))
+                () -> new CustomException("배송담당자가 아니기 때문에 조회불가합니다. ID: " + Long.parseLong(userId))
         );
 
         //ADMIN 은 전부조회
         if(userRole.equals("HUB")){
             if (!deliverUser.getHubId().equals(searchMan.getHubId())) {//조회자의hubid와 나의 hubid
-                throw new CustomForbiddenException("본인 소속 허브의 배송담당자만 조회할 수 있습니다.");
+                throw new CustomException("본인 소속 허브의 배송담당자만 조회할 수 있습니다.");
             }
         }
         else if(userRole.equals("DELIVERY")){
             if (!deliverUser.getUser().getUserId().equals(Long.parseLong(userId))) {
-                throw new CustomForbiddenException("본인의 정보만 조회할 수 있습니다.");}
+                throw new CustomException("본인의 정보만 조회할 수 있습니다.");}
         }
         else if (userRole.equals("COMPANY")) {
-            throw new CustomForbiddenException("배송담당자 정보에 접근할 권한이 없습니다.");
+            throw new CustomException("배송담당자 정보에 접근할 권한이 없습니다.");
         }
 
         if (deliverUser.getDeletedAt() != null) {
-            throw new CustomNotFoundException("삭제된 배송담당자입니다.");
+            throw new CustomException("삭제된 배송담당자입니다.");
         }
 
         return DeliverUserResponseDto.from(deliverUser);
@@ -154,10 +152,10 @@ public Page<DeliverUserResponseDto> searchDeliverUsersByName(String name, String
 //        }
 
         DeliverUser deliverUser = deliverUserRepository.findByDeliverId(deliverId)
-                .orElseThrow(() -> new CustomNotFoundException("수정하려는 배송담당자 정보를 찾을 수 없습니다. ID: " + deliverId));
+                .orElseThrow(() -> new CustomException("수정하려는 배송담당자 정보를 찾을 수 없습니다. ID: " + deliverId));
 
         if (deliverUser.getDeletedAt() != null) {
-            throw new CustomNotFoundException("삭제된 배송담당자입니다.");
+            throw new CustomException("삭제된 배송담당자입니다.");
         }
 
         // 필드 업데이트
@@ -201,10 +199,10 @@ public Page<DeliverUserResponseDto> searchDeliverUsersByName(String name, String
 //        }
 
         DeliverUser deliverUser = deliverUserRepository.findByDeliverId(deliverId)
-                .orElseThrow(() -> new CustomNotFoundException("삭제하려는 배송담당자 정보를 찾을 수 없습니다. ID: " + deliverId));
+                .orElseThrow(() -> new CustomException("삭제하려는 배송담당자 정보를 찾을 수 없습니다. ID: " + deliverId));
 
         if (deliverUser.getDeletedAt() != null) {
-            throw new CustomNotFoundException("이미 삭제된 배송담당자입니다.");
+            throw new CustomException("이미 삭제된 배송담당자입니다.");
         }
 
         // 논리적 삭제 처리
@@ -241,7 +239,7 @@ public Page<DeliverUserResponseDto> searchDeliverUsersByName(String name, String
     public FeignDeliverSlackIdResDto getDeliverSlackUserById(UUID deliverId) {
         // 권한 검증
         DeliverUser deliverUser = deliverUserRepository.findByDeliverId(deliverId)
-                .orElseThrow(() -> new CustomNotFoundException("배송담당자 정보를 찾을 수 없습니다(d). ID: " + deliverId));
+                .orElseThrow(() -> new CustomException("배송담당자 정보를 찾을 수 없습니다(d). ID: " + deliverId));
 
         return FeignDeliverSlackIdResDto.from(deliverUser);
     }
@@ -260,7 +258,7 @@ public Page<DeliverUserResponseDto> searchDeliverUsersByName(String name, String
         // 1) (deliverType, hubId)에 맞는 ACTIVE 담당자 목록 조회
         List<DeliverUser> users = getActiveDeliverUsers(deliverType, hubId);
         if (users.isEmpty()) {
-            throw new IllegalStateException("배정 가능한 ACTIVE 상태의 배송담당자가 없습니다. " +
+            throw new CustomException("배정 가능한 ACTIVE 상태의 배송담당자가 없습니다. " +
                     "[deliverType=" + deliverType + ", hubId=" + hubId + "]");
         }
 
@@ -315,12 +313,12 @@ public Page<DeliverUserResponseDto> searchDeliverUsersByName(String name, String
     public DeliverUserResponseDto createDeliverUser(DeliverUserCreateReqDto deliverUserCreateReqDto) {
         // 1) User 존재 검사
         User user = userRepository.findById(deliverUserCreateReqDto.getUserId())
-                .orElseThrow(() -> new CustomNotFoundException("등록하려는 사용자가 존재하지 않습니다. "));
+                .orElseThrow(() -> new CustomException("등록하려는 사용자가 존재하지 않습니다. "));
 
         if(user.getUserRoles().name().equals("DELIVER_COMPANY")) { //소속허브가 존재하지 않을경우 예외발생
             ResponseDto<FeignHubDto> response = hubClient.getHub(user.getHubId());
             if (response.getData() == null) {
-                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "해당 허브가 존재하지 않습니다.");
+                throw new CustomException("해당 허브가 존재하지 않습니다.");
             }
         }
 
