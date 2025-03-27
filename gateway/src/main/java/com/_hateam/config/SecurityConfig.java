@@ -41,7 +41,7 @@ public class SecurityConfig {
 
 
                 .authorizeExchange(exchange -> exchange
-                        .pathMatchers("/swagger-ui.html", "/swagger-ui/**", "/api-docs/**", "/v3/api-docs/**", "/webjars/**").permitAll()
+                        .pathMatchers("/swagger-ui.html", "/swagger-ui/**", "/api-docs/**", "/*/v3/api-docs/**", "/v3/api-docs/**", "/webjars/**").permitAll()
                         
                         .pathMatchers("/api/auth/**").permitAll()
                         .pathMatchers("/api/users/signup").permitAll()
@@ -75,8 +75,6 @@ public class SecurityConfig {
 
                         .pathMatchers("/api/orders/**").permitAll()
                         .pathMatchers("/api/slack/**").permitAll()
-
-                        .pathMatchers"/swagger-ui/**", "/v3/api-docs/**", "/*/v3/api-docs/**", "/webjars/**").permitAll()
 
                         .pathMatchers(HttpMethod.PUT,"/api/users/roles/**").hasAuthority(UserRole.ADMIN.getRole())
 
