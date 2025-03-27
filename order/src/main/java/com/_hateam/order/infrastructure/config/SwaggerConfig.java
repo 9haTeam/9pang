@@ -1,5 +1,6 @@
 package com._hateam.order.infrastructure.config;
 
+import com._hateam.common.config.BaseSwaggerConfig;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
@@ -11,11 +12,14 @@ import org.springframework.context.annotation.Configuration;
 import java.util.List;
 
 @Configuration
-public class SwaggerConfig {
+public class SwaggerConfig extends BaseSwaggerConfig {
 
     @Bean
-    public OpenAPI orderServiceOpenAPI() {
-        return new OpenAPI()
+    @Override
+    public OpenAPI baseOpenAPI() {
+        OpenAPI baseApi = super.baseOpenAPI();
+
+        return baseApi
                 .info(new Info()
                         .title("주문 서비스 API")
                         .description("MSA 기반 물류 관리 및 배송 시스템의 주문 서비스 API입니다.")
