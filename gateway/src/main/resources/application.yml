@@ -55,7 +55,7 @@ spring:
 
         - id: user-service-swagger
           uri: lb://user-service
-          redicates:
+          predicates:
             - Path=/user-service/v3/api-docs/**
           filters:
             - RewritePath=/user-service(?<segment>/?.*), $\{segment}
