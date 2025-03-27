@@ -38,6 +38,55 @@ spring:
           uri: lb://message-service
           predicates:
             - Path=/api/slack/**
+
+        - id: order-service-swagger
+          uri: lb://order-service
+          predicates:
+            - Path=/order-service/v3/api-docs/**
+          filters:
+            - RewritePath=/order-service(?<segment>/?.*), $\{segment}
+
+        - id: message-service-swagger
+          uri: lb://message-service
+          predicates:
+            - Path=/message-service/v3/api-docs/**
+          filters:
+            - RewritePath=/message-service(?<segment>/?.*), $\{segment}
+
+        - id: user-service-swagger
+          uri: lb://user-service
+          redicates:
+            - Path=/user-service/v3/api-docs/**
+          filters:
+            - RewritePath=/user-service(?<segment>/?.*), $\{segment}
+
+        - id: hubs-service-swagger
+          uri: lb://hubs-service
+          predicates:
+            - Path=/hubs-service/v3/api-docs/**
+          filters:
+            - RewritePath=/hubs-service(?<segment>/?.*), $\{segment}
+
+        - id: company-service-swagger
+          uri: lb://company-service
+          predicates:
+            - Path=/company-service/v3/api-docs/**
+          filters:
+            - RewritePath=/company-service(?<segment>/?.*), $\{segment}
+
+        - id: swagger-ui
+          uri: lb://user-service
+          predicates:
+            - Path=/swagger-ui/**
+
+      globalcors:
+        corsConfigurations:
+          '[/**]':
+            allowedOrigins: "*"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+        add-to-simple-url-handler-mapping: true
+
       discovery:
         locator:
           enabled: true
@@ -69,3 +118,17 @@ management:
   zipkin:
     tracing:
       endpoint: http://zipkin:9411/api/v2/spans
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    urls:
+      - name: Order Service
+        url: /order-service/v3/api-docs
+      - name: Message Service
+        url: /message-service/v3/api-docs
+      - name: User Service
+        url: /user-service/v3/api-docs
+      - name: Hubs Service
+        url: /hubs-service/v3/api-docs
+      - name: Company Service
+        url: /company-service/v3/api-docs

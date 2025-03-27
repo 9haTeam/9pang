@@ -75,6 +75,9 @@ public class SecurityConfig {
 
                         .pathMatchers("/api/orders/**").permitAll()
                         .pathMatchers("/api/slack/**").permitAll()
+
+                        .pathMatchers"/swagger-ui/**", "/v3/api-docs/**", "/*/v3/api-docs/**", "/webjars/**").permitAll()
+
                         .pathMatchers(HttpMethod.PUT,"/api/users/roles/**").hasAuthority(UserRole.ADMIN.getRole())
 
                         .anyExchange().authenticated()
