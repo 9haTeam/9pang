@@ -54,10 +54,11 @@ public class SecurityConfig {
                                    
                         .pathMatchers("/redis/**").hasAuthority(UserRole.ADMIN.getRole())
 
-                        .pathMatchers(HttpMethod.POST,"/hubs").hasAuthority(UserRole.ADMIN.getRole())
-                        .pathMatchers(HttpMethod.PATCH,"/hubs/**").hasAuthority(UserRole.ADMIN.getRole())
-                        .pathMatchers(HttpMethod.DELETE,"/hubs/**").hasAuthority(UserRole.ADMIN.getRole())
-                        .pathMatchers(HttpMethod.GET,"/hubs/**").permitAll()
+                        .pathMatchers(HttpMethod.GET, "/hubs/**").permitAll()
+                        .pathMatchers(HttpMethod.POST, "/hubs").hasAuthority(UserRole.ADMIN.getRole())
+                        .pathMatchers(HttpMethod.PATCH, "/hubs/**").hasAuthority(UserRole.ADMIN.getRole())
+                        .pathMatchers(HttpMethod.DELETE, "/hubs/**").hasAuthority(UserRole.ADMIN.getRole())
+                        .pathMatchers("/hubs").permitAll()
 
                         .pathMatchers(HttpMethod.POST,"/hub-routes").hasAuthority(UserRole.ADMIN.getRole())
                         .pathMatchers(HttpMethod.PATCH,"/hub-routes/**").hasAuthority(UserRole.ADMIN.getRole())

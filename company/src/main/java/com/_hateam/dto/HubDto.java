@@ -47,4 +47,14 @@ public class HubDto implements Serializable { // Serializable 인터페이스 �
                 .longitude(hub.getLongitude())
                 .build();
     }
+
+    public static Hub hubToHubDto(HubDto hubDto) {
+        return Hub.builder()
+                .id(hubDto.getId())
+                .name(hubDto.getName())
+                .address(hubDto.getAddress())
+                .latitude(hubDto.getLatitude())
+                .longitude(hubDto.getLongitude())
+                .build();
+    }
 }

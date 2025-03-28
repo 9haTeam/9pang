@@ -1,19 +1,18 @@
 package com._hateam.service;
 
-import com._hateam.common.dto.ResponseDto;
 import com._hateam.dto.CompanyDto;
 import com._hateam.dto.CompanyRequestDto;
-import com._hateam.dto.HubDto;
 import com._hateam.entity.Company;
+import com._hateam.entity.Hub;
 import com._hateam.feign.HubController;
 import com._hateam.repository.CompanyRepository;
+import com._hateam.repository.HubRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +29,7 @@ public class CompanyService {
 
     private final CompanyRepository companyRepository;
     private final HubController hubController; // Feign Client로 허브 조회
+    private final HubRepository hubRepository;
 
     @Transactional
     public CompanyDto createCompany(CompanyRequestDto requestDto) {
@@ -146,10 +146,12 @@ public class CompanyService {
     }
 
     private void validateHubExists(UUID hubId) {
-        ResponseEntity<ResponseDto<HubDto>> response = hubController.getHub(hubId);
-        if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null || response.getBody().getData() == null) {
-            throw new EntityNotFoundException("관리 허브가 존재하지 않습니다. hubId: " + hubId);
-        }
+//        ResponseEntity<ResponseDto<HubDto>> response = hubController.getHub(hubId);
+//        if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null || response.getBody().getData() == null) {
+//            throw new EntityNotFoundException("관리 허브가 존재하지 않습니다. hubId: " + hubId);
+//        }
+//    }
+        Hub hub = hubRepository.findById(hubId)
+                .orElseThrow(() -> new EntityNotFoundException("관리 허브가 존재하지 않습니다. hubId: " + hubId));
     }
-
 }

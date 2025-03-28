@@ -13,18 +13,16 @@ import java.util.List;
 import java.util.UUID;
 
 @FeignClient(
-        name = "company-service",
-        url = "http://localhost:8080/companies"
-)
+        name = "company-service")
 public interface CompanyController {
     //    허브의 소속 특정 업체 조회
-    @GetMapping("/hub/{hubId}/{companyId}")
+    @GetMapping("/companies/hub/{hubId}/{companyId}")
     ResponseEntity<ResponseDto<CompanyDto>> getCompanyByCompanyIdAndHubId(
             @PathVariable UUID hubId,
             @PathVariable UUID companyId);
 
     //    허브의 소속 업체 전체 조회
-    @GetMapping(value = "/hub/{hubId}", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @GetMapping(value = "/companies/hub/{hubId}", consumes = MediaType.APPLICATION_JSON_VALUE)
     ResponseEntity<ResponseDto<List<CompanyDto>>> getCompaniesByHubId(
             @PathVariable UUID hubId,
             @RequestParam(value = "page", defaultValue = "0") int page,
