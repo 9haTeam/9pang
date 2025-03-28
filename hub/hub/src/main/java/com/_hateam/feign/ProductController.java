@@ -9,11 +9,10 @@ import org.springframework.web.bind.annotation.PathVariable;
 
 import java.util.UUID;
 @FeignClient(
-        name = "ProductController",
-        url = "http://localhost:8080/products"
+        name = "ProductController"
 )
 public interface ProductController {
     //    허브의 소속 상품 조회
-    @GetMapping(value = "/hub/{hubId}")
+    @GetMapping(value = "/products/hub/{hubId}")
     ResponseEntity<ResponseDto<ProductDto>> getProductsByHubId(@PathVariable UUID hubId);
 }

@@ -60,6 +60,7 @@ public class HubController {
      */
     @GetMapping("/{id}")
     public ResponseEntity<ResponseDto<HubDto>> getHub(@PathVariable UUID id) {
+        log.info("Hub id : " + id);
         HubDto hub = hubService.getHub(id);
         return ResponseEntity.status(HttpStatus.OK)
                 .body(ResponseDto.success(HttpStatus.OK, hub));

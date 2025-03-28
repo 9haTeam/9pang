@@ -2,58 +2,76 @@ package com._hateam.config;
 
 
 import com._hateam.CompanyType;
+import com._hateam.common.dto.ResponseDto;
+import com._hateam.dto.HubDto;
 import com._hateam.entity.Company;
 import com._hateam.entity.Hub;
 import com._hateam.entity.Product;
+import com._hateam.feign.HubController;
 import com._hateam.repository.CompanyRepository;
 import com._hateam.repository.HubRepository;
 import com._hateam.repository.ProductRepository;
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.annotation.DependsOn;
-import org.springframework.core.annotation.Order;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
 import java.util.List;
-import java.util.Random;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@DependsOn("hubInitializer")
 public class CompanyInitializer {
-
 
     private final HubRepository hubRepository;
     private final CompanyRepository companyRepository;
     private final ProductRepository productRepository;
+    private final HubController hubController;
 
-    public UUID getRandomHubId() {
-        List<Hub> allHubs = hubRepository.findAll();
-        if (allHubs.isEmpty()) {
+    public List<UUID> getRandomHubIds(int count) {
+        log.info("getRandomHubIds Method Start");
+        ResponseEntity<ResponseDto<List<HubDto>>> response =
+                hubController.getAllHubs(0, 10, "createdAt", false); // 모든 허브를 가져옴
+
+        if (response.getBody() == null
+                || response.getBody().getData() == null
+                || response.getBody().getData().isEmpty()) {
             throw new IllegalStateException("No hubs available in DB");
         }
-        // ThreadLocalRandom을 사용하여 랜덤 인덱스 선택
-        return allHubs.get(ThreadLocalRandom.current().nextInt(allHubs.size())).getId();
-    }
 
-    @PostConstruct
-    @Order(2)
-    @Transactional
-    public void initTestData() {
-        // 허브가 없으면 테스트 데이터를 초기화하지 않고 경고 로그를 남김
-        if (hubRepository.count() == 0) {
-            log.warn("No hubs available in DB, skipping test data initialization");
-            return;
+        List<HubDto> hubDtos = response.getBody().getData();
+        log.info("hubDtos : " + hubDtos);
+
+        // HubDto를 Hub 엔티티로 변환 (필요에 따라 변환 로직 구현)
+        List<Hub> hubs = new java.util.ArrayList<>(hubDtos.stream()
+                .map(HubDto::hubToHubDto) // HubDto를 Hub로 변환하는 메서드
+                .toList());
+
+        if (hubs.size() < count) {
+            throw new IllegalStateException("Not enough hubs available in DB");
         }
 
+        // 리스트를 섞은 후 앞의 count 개를 선택
+        Collections.shuffle(hubs);
+        return hubs.stream()
+                .limit(count)
+                .map(Hub::getId)
+                .toList();
+    }
+
+    @EventListener(ApplicationReadyEvent.class)
+    @Transactional
+    public void initTestData() {
+        // 한 번 호출하여 3개의 랜덤 허브 ID를 가져옴
+        List<UUID> hubIds = getRandomHubIds(3);
         // 각 허브에 소속된 회사 생성
         Company company1 = Company.builder()
-                .hubId(getRandomHubId())
+                .hubId(hubIds.get(0))
                 .userId("admin1")
                 .name("서울회사1")
                 .address("서울특별시 강남구 역삼동")
@@ -63,7 +81,7 @@ public class CompanyInitializer {
         company1 = companyRepository.save(company1);
 
         Company company2 = Company.builder()
-                .hubId(getRandomHubId())
+                .hubId(hubIds.get(1))
                 .userId("admin2")
                 .name("서울회사2")
                 .address("서울특별시 종로구")
@@ -73,7 +91,7 @@ public class CompanyInitializer {
         company2 = companyRepository.save(company2);
 
         Company company3 = Company.builder()
-                .hubId(getRandomHubId())
+                .hubId(hubIds.get(2))
                 .userId("admin3")
                 .name("부산회사1")
                 .address("부산광역시 해운대구")
