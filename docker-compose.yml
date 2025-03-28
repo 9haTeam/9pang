@@ -291,6 +291,53 @@ services:
     networks:
       - msanet
 
+  # 배송 서비스 추가
+  delivery-service:
+    build:
+      context: .
+      dockerfile: delivery/Dockerfile
+    container_name: delivery-service
+    environment:
+      - SPRING_PROFILES_ACTIVE=default
+      - SERVER_PORT=8080
+      - SPRING_APPLICATION_NAME=delivery-service
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
+      # 데이터베이스 설정
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://delivery-db:5432/deliverydb
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      # Redis 설정
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+      # Kafka 설정
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      # 다른 서비스와의 통신 설정
+      - FEIGN_CLIENT_URL_USER=http://user-service:8080
+      - FEIGN_CLIENT_URL_COMPANY=http://company-service:8080
+      - FEIGN_CLIENT_URL_HUB=http://hubs-service:8080
+    depends_on:
+      - delivery-db
+      - redis
+      - eureka-server
+      - kafka
+      - user-service
+      - company-service
+      - hubs-service
+    networks:
+      - msanet
+
+  delivery-db:
+    image: postgres:14
+    container_name: delivery-db
+    environment:
+      - POSTGRES_DB=deliverydb
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    ports:
+      - "5440:5432"
+    networks:
+      - msanet
+
   # Kafka 및 Zookeeper 추가
   zookeeper:
     image: confluentinc/cp-zookeeper:7.3.2
