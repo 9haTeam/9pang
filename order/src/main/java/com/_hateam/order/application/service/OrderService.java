@@ -1,6 +1,7 @@
 package com._hateam.order.application.service;
 
 import com._hateam.common.constant.KafkaTopics;
+import com._hateam.common.event.OrderCreatedEvent;
 import com._hateam.common.event.OrderCreatedForSlackEvent;
 import com._hateam.common.exception.CustomConflictException;
 import com._hateam.common.exception.CustomNotFoundException;
@@ -105,6 +106,16 @@ public class OrderService {
         order.calculateTotalPrice();
 
         Order savedOrder = orderRepository.save(order);
+
+        OrderCreatedEvent event = OrderCreatedEvent.builder()
+                .orderId(savedOrder.getOrderId())
+                .hubId(savedOrder.getHubId())
+                .companyId(savedOrder.getCompanyId())
+                .orderRequest(savedOrder.getOrderRequest())
+                .deliveryDeadline(savedOrder.getDeliveryDeadline())
+                .build();
+
+        kafkaTemplate.send(KafkaTopics.ORDER_CREATED, event);
 
         sendOrderCreatedSlackNotification(savedOrder);
 
