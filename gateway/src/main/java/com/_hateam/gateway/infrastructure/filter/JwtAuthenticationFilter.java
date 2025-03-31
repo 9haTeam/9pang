@@ -1,4 +1,4 @@
-package com._hateam.filter;
+package com._hateam.gateway.infrastructure.filter;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
