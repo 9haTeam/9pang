@@ -18,7 +18,7 @@ import java.util.Collections;
 import java.util.List;
 
 @Component
-@Slf4j
+//@Slf4j
 public class JwtReactiveAuthenticationManager implements ReactiveAuthenticationManager {
     @Value("${service.jwt.secret-key}")
     private String secretKey;
@@ -35,15 +35,15 @@ public class JwtReactiveAuthenticationManager implements ReactiveAuthenticationM
                     .getPayload();
 
             // 파싱된 Claims 출력 (디버깅용)
-            log.info("Parsed JWT Claims: {}", claims);
+            // log.info("Parsed JWT Claims: {}", claims);
 
             Long userId2 = claims.get("userId", Long.class);
             String role = claims.get("role", String.class);
 
 
             // 디버깅 로그
-            log.info("User ID from token: {}", userId2);
-            log.info("Final role after substring check: {}", role);
+            // log.info("User ID from token: {}", userId2);
+            // log.info("Final role after substring check: {}", role);
 
             List<SimpleGrantedAuthority> authorities =
                     Collections.singletonList(new SimpleGrantedAuthority(role));
@@ -51,8 +51,8 @@ public class JwtReactiveAuthenticationManager implements ReactiveAuthenticationM
             String userId=String.valueOf(userId2);
             Authentication auth = new UsernamePasswordAuthenticationToken(userId, null, authorities);
 
-            log.info("Created Auth: {}", auth);
-            log.info("Auth Authorities: {}", auth.getAuthorities());
+            //log.info("Created Auth: {}", auth);
+            //log.info("Auth Authorities: {}", auth.getAuthorities());
 
 
             return Mono.just(auth);

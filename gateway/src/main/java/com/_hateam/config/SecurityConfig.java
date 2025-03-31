@@ -24,7 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 @Configuration
 @EnableWebFluxSecurity
-@Slf4j
+//@Slf4j
 public class SecurityConfig {
 
     private final JwtReactiveAuthenticationManager authenticationManager;
@@ -41,9 +41,9 @@ public class SecurityConfig {
 
 
                 .authorizeExchange(exchange -> exchange
-                        .pathMatchers("/api/auth/**").permitAll()
+                        .pathMatchers("/api/auth/signin").permitAll()
+                        .pathMatchers("/api/auth/refresh").permitAll()
                         .pathMatchers("/api/users/signup").permitAll()
-                        .pathMatchers("/api/users/signin").permitAll()
                         .pathMatchers("/api/users/getusers").hasAuthority(UserRole.ADMIN.getRole()) 
                         .pathMatchers("/api/users/roles/**").hasAuthority(UserRole.ADMIN.getRole())
                         .pathMatchers(HttpMethod.PUT,"/api/users/**").hasAuthority(UserRole.ADMIN.getRole())                                  

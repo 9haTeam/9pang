@@ -20,4 +20,36 @@ public class AuthController {
     }
 
 
+
+    // AuthController 수정
+    @PostMapping("/refresh")
+    public ResponseEntity<ResponseDto<UserSignInResDto>> refreshToken(@RequestBody RefreshReqDto refreshReqDto) {
+
+        String accessToken = refreshReqDto.getAccessToken();
+        String refreshToken = refreshReqDto.getRefreshToken();
+
+        System.out.println("액세스 토큰: [" + accessToken + "]");
+        System.out.println("리프레시 토큰: [" + refreshToken + "]");
+
+        ResponseDto<UserSignInResDto> response = authService.refreshToken(
+                refreshReqDto.getAccessToken(),
+                refreshReqDto.getRefreshToken()
+        );
+        return ResponseEntity.ok(response);
+    }
+
+
+    @PostMapping("/logout")
+    public ResponseEntity<ResponseDto<Void>> logout(@RequestHeader("Authorization") String authHeader) {
+        ResponseDto<Void> response = authService.logoutWithToken(authHeader);
+        return ResponseEntity.ok(response);
+    }
+
+
+    @PostMapping("/users/{userId}/tokens")
+    public ResponseEntity<ResponseDto<Void>> deleteUserTokens(@PathVariable Long userId) {
+        ResponseDto<Void> response = authService.deleteAllUserTokens(userId);
+        return ResponseEntity.ok(response);
+    }
+
 }

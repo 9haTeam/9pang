@@ -12,7 +12,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class UserSignInResDto {
     private Long userId;
-   // private String username;
+    // private String username;
     private String role;
     private String accessToken;
     private String refreshToken;
