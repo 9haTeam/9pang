@@ -1,6 +1,7 @@
-package com._hateam.filter;
+package com._hateam.gateway.infrastructure.filter;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
@@ -18,7 +19,7 @@ import java.util.Collections;
 import java.util.List;
 
 @Component
-@Slf4j
+//@Slf4j
 public class JwtReactiveAuthenticationManager implements ReactiveAuthenticationManager {
     @Value("${service.jwt.secret-key}")
     private String secretKey;
@@ -34,30 +35,30 @@ public class JwtReactiveAuthenticationManager implements ReactiveAuthenticationM
                     .parseSignedClaims(token)
                     .getPayload();
 
-            // 파싱된 Claims 출력 (디버깅용)
-            log.info("Parsed JWT Claims: {}", claims);
-
             Long userId2 = claims.get("userId", Long.class);
             String role = claims.get("role", String.class);
 
-
-            // 디버깅 로그
-            log.info("User ID from token: {}", userId2);
-            log.info("Final role after substring check: {}", role);
-
             List<SimpleGrantedAuthority> authorities =
                     Collections.singletonList(new SimpleGrantedAuthority(role));
-            //임시
+
             String userId=String.valueOf(userId2);
             Authentication auth = new UsernamePasswordAuthenticationToken(userId, null, authorities);
 
-            log.info("Created Auth: {}", auth);
-            log.info("Auth Authorities: {}", auth.getAuthorities());
 
 
             return Mono.just(auth);
+
+        } catch (ExpiredJwtException e) {  // 토큰 만료 예외 처리
+
+
+            // JWT 토큰 만료 예외를 특별히 처리하기 위한 커스텀 예외 발생
+            return Mono.error(e);//GlobalErrorWebExceptionHandler로 처리(SecurityConfig필터 우회하므로)
         } catch (Exception e) {
+            // 다른 모든 예외
+
             return Mono.empty(); // 인증 실패 시
         }
+
+
     }
 }

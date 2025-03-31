@@ -1,4 +1,4 @@
-package com._hateam.config;
+package com._hateam.gateway.domain.enums;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

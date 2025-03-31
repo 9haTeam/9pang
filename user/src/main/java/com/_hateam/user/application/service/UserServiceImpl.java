@@ -7,6 +7,7 @@ import com._hateam.user.domain.model.User;
 import com._hateam.user.domain.repository.DeliverUserRepository;
 import com._hateam.user.domain.repository.UserRepository;
 import com._hateam.user.application.exception.CustomException;
+import com._hateam.user.infrastructure.feign.AuthClient;
 import com._hateam.user.infrastructure.security.JwtUtil;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,8 @@ public class UserServiceImpl implements UserService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final AuthenticationManager authenticationManager;
+
+    private final AuthClient authClient;
 
     @Override
     public UserResponseDto saveUser(UserSignUpReqDto userSignUpReqDto) {
@@ -133,15 +136,26 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException("사용자를 찾을 수 없습니다."));
 
+
         Optional<DeliverUser> optionalDeliverUser = deliverUserRepository.findByUser_UserId(userId);
         optionalDeliverUser.ifPresent(deliverUser -> {
             deliverUser.setDeletedBy(userMyId);
             deliverUser.setDeletedAt(LocalDateTime.now());
         });
 
+
         user.setDeletedAt(LocalDateTime.now());
         user.setDeletedBy(user.getUsername());
         userRepository.save(user);
+
+
+        try {//유저 삭제시 리프레시토큰도 db에서 제거
+            authClient.deleteUserTokens(userId);
+            log.info("사용자 ID {}의 토큰 삭제 요청 성공", userId);
+        } catch (Exception e) {
+            log.error("사용자 토큰 삭제 요청 실패: {}", e.getMessage());
+        }
+
 
     }
 

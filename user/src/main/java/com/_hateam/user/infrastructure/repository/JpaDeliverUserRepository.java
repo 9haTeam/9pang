@@ -18,19 +18,9 @@ public interface JpaDeliverUserRepository  extends JpaRepository<DeliverUser, UU
 
     Optional<DeliverUser> findByDeliverId(UUID deliverId);
 
-    //List<DeliverUser> findByHubId(UUID hubId);
-
     Optional<DeliverUser> findByUser_UserId(Long userId);
 
-    //List<DeliverUser> findByDeliverType(DeliverType deliverType);
-
-    //List<DeliverUser> findAllByOrderByRotationOrderAsc();
-
-    //boolean existsByContactNumber(String contactNumber);
-
     List<DeliverUser> findByHubIdAndDeletedAtIsNull(UUID hubId);
-
-    //List<DeliverUser> findByNameContainingAndDeletedAtIsNull(String name);
 
     List<DeliverUser> findByDeletedAtIsNull();
 

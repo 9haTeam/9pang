@@ -1,7 +1,8 @@
-package com._hateam.config;
+package com._hateam.gateway.infrastructure.config;
 
-import com._hateam.filter.JwtReactiveAuthenticationManager;
-import com._hateam.filter.JwtSecurityContextRepository;
+import com._hateam.gateway.domain.enums.UserRole;
+import com._hateam.gateway.infrastructure.filter.JwtReactiveAuthenticationManager;
+import com._hateam.gateway.infrastructure.filter.JwtSecurityContextRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -9,22 +10,17 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
-import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.MediaType;
 import java.nio.charset.StandardCharsets;
 import reactor.core.publisher.Mono;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.http.server.reactive.ServerHttpRequest;
-import lombok.extern.slf4j.Slf4j;
 
 @RequiredArgsConstructor
 @Configuration
 @EnableWebFluxSecurity
-@Slf4j
+//@Slf4j
 public class SecurityConfig {
 
     private final JwtReactiveAuthenticationManager authenticationManager;
@@ -41,10 +37,10 @@ public class SecurityConfig {
 
 
                 .authorizeExchange(exchange -> exchange
-                        .pathMatchers("/api/auth/**").permitAll()
+                        .pathMatchers("/api/auth/signin").permitAll()
+                        .pathMatchers("/api/auth/refresh").permitAll()
                         .pathMatchers("/api/users/signup").permitAll()
-                        .pathMatchers("/api/users/signin").permitAll()
-                        .pathMatchers("/api/users/getusers").hasAuthority(UserRole.ADMIN.getRole()) 
+                        .pathMatchers("/api/users/getusers").hasAuthority(UserRole.ADMIN.getRole())
                         .pathMatchers("/api/users/roles/**").hasAuthority(UserRole.ADMIN.getRole())
                         .pathMatchers(HttpMethod.PUT,"/api/users/**").hasAuthority(UserRole.ADMIN.getRole())                                  
                         .pathMatchers(HttpMethod.PUT,"/api/delivery-users/**").hasAuthority(UserRole.ADMIN.getRole())
@@ -81,8 +77,34 @@ public class SecurityConfig {
                 .exceptionHandling(exceptionHandling -> exceptionHandling
                         .authenticationEntryPoint((exchange, ex) -> {
                             ServerHttpResponse response = exchange.getResponse();
-                            response.setStatusCode(HttpStatus.FORBIDDEN);
-                            String errorMessage = "{\"message\":\"적절하지 않은 토큰입니다.\"}";
+
+                            response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
+
+                            // 모든 인증 예외에 대해 401 반환
+                            response.setStatusCode(HttpStatus.UNAUTHORIZED); // 401
+
+                            String errorMessage;
+
+                            // 예외의 원인 체인을 분석
+                            Throwable cause = ex;
+                            boolean isExpired = false;
+
+                            // 모든 원인 체인을 순회하며 ExpiredJwtException 검사
+                            while (cause != null) {
+                                if (cause.getClass().getName().equals("io.jsonwebtoken.ExpiredJwtException")) {
+                                    isExpired = true;
+                                    break;
+                                }
+                                cause = cause.getCause();
+                            }
+
+                            if (isExpired) {
+                                errorMessage = "{\"message\":\"토큰이 만료되었습니다.\"}";
+                            } else {
+                                errorMessage = "{\"message\":\"적절하지 않은 토큰입니다.\"}";
+                            }
+
+
                             DataBuffer buffer = response.bufferFactory().wrap(errorMessage.getBytes(StandardCharsets.UTF_8));
                             return response.writeWith(Mono.just(buffer));
                         })

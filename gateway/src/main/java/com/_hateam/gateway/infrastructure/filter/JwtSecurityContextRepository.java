@@ -1,4 +1,4 @@
-package com._hateam.filter;
+package com._hateam.gateway.infrastructure.filter;
 
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;

@@ -20,6 +20,8 @@ public interface UserClient {
 
     @GetMapping("/api/users/verify/signin")
     ResponseEntity<ResponseDto<FeignVerifyResDto>> findByUsername(@RequestParam String username);
-//    ResponseEntity<ResponseDto<FeignVerifyResDto>> findByUsername(UserSignInReqDto userSignInReqDto);
-//dto자체생성
+
+
+
+
 }
