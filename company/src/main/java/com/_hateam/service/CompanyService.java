@@ -1,7 +1,9 @@
 package com._hateam.service;
 
+import com._hateam.common.dto.ResponseDto;
 import com._hateam.dto.CompanyDto;
 import com._hateam.dto.CompanyRequestDto;
+import com._hateam.dto.HubDto;
 import com._hateam.entity.Company;
 import com._hateam.entity.Hub;
 import com._hateam.feign.HubController;
@@ -13,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -146,12 +149,9 @@ public class CompanyService {
     }
 
     private void validateHubExists(UUID hubId) {
-//        ResponseEntity<ResponseDto<HubDto>> response = hubController.getHub(hubId);
-//        if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null || response.getBody().getData() == null) {
-//            throw new EntityNotFoundException("관리 허브가 존재하지 않습니다. hubId: " + hubId);
-//        }
-//    }
-        Hub hub = hubRepository.findById(hubId)
-                .orElseThrow(() -> new EntityNotFoundException("관리 허브가 존재하지 않습니다. hubId: " + hubId));
+        ResponseEntity<ResponseDto<HubDto>> response = hubController.getHub(hubId);
+        if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null || response.getBody().getData() == null) {
+            throw new EntityNotFoundException("관리 허브가 존재하지 않습니다. hubId: " + hubId);
+        }
     }
 }

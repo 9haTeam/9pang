@@ -1,3 +1,4 @@
+version: '3.8'
 services:
   eureka-server:
     build:
@@ -89,6 +90,12 @@ services:
       - eureka-server
     networks:
       - msanet
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -q --spider http://localhost:8080/actuator/health || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s  # 서비스 시작 시간 늘리기
 
   hubs-db:
     image: postgres:14
@@ -117,9 +124,12 @@ services:
       - SPRING_DATASOURCE_USERNAME=postgres
       - SPRING_DATASOURCE_PASSWORD=postgres
     depends_on:
-      - hubs-service
-      - company-db
-      - eureka-server
+      hubs-service:
+        condition: service_healthy
+      company-db:
+        condition: service_started
+      eureka-server:
+        condition: service_started
     networks:
       - msanet
 

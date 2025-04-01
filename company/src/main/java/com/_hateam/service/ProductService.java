@@ -156,12 +156,9 @@ public class ProductService {
     }
 
     private void validateHubExists(UUID hubId) {
-//        ResponseEntity<ResponseDto<HubDto>> response = hubController.getHub(hubId);
-//        if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null || response.getBody().getData() == null) {
-//            throw new EntityNotFoundException("관리 허브가 존재하지 않습니다. hubId: " + hubId);
-//        }
-//    }
-        Hub hub = hubRepository.findById(hubId)
-                .orElseThrow(() -> new EntityNotFoundException("관리 허브가 존재하지 않습니다. hubId: " + hubId));
+        ResponseEntity<ResponseDto<HubDto>> response = hubController.getHub(hubId);
+        if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null || response.getBody().getData() == null) {
+            throw new EntityNotFoundException("관리 허브가 존재하지 않습니다. hubId: " + hubId);
+        }
     }
 }
