@@ -106,6 +106,8 @@ public class ProductService {
         product.setDescription(requestDto.getDescription());
         product.setPrice(requestDto.getPrice());
 
+        productRepository.save(product);
+
         return ProductDto.productToProductDto(product);
     }
 
