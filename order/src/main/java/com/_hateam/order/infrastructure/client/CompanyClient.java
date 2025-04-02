@@ -4,6 +4,7 @@ import com._hateam.common.dto.ResponseDto;
 import com._hateam.order.infrastructure.client.dto.CompanyDto;
 import com._hateam.order.infrastructure.client.dto.ProductDto;
 import com._hateam.order.infrastructure.client.dto.ProductRequestDto;
+import com._hateam.order.infrastructure.config.FeignConfig;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -12,9 +13,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 
 import java.util.UUID;
 
-@FeignClient(name = "company-service", url = "${services.company.url}")
+@FeignClient(name = "company-service", url = "${services.company.url}", configuration = FeignConfig.class
+)
 public interface CompanyClient {
-    
+
     @GetMapping("/companies/{companyId}")
     ResponseDto<CompanyDto> getCompanyById(@PathVariable("companyId") UUID companyId);
 

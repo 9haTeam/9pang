@@ -86,6 +86,10 @@ dependencies {
 	// Test
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+	// OpenFeign HTTP Client
+	implementation 'io.github.openfeign:feign-httpclient:12.1'
+	implementation 'org.apache.httpcomponents:httpclient:4.5.14'
 }
 
 dependencyManagement {
