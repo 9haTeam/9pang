@@ -24,7 +24,7 @@ public class Company extends Timestamped {
     private UUID id;
 
     // 소속 허브 id (필요한 경우 별도 매핑)
-    @Column(name = "hub_id", nullable = false, length = 50, unique = true)
+    @Column(name = "hub_id", nullable = false, length = 50)
     private UUID hubId;
 
     // 관리자 id
