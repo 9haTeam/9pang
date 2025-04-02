@@ -23,11 +23,10 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -62,44 +61,66 @@ public class OrderService {
 
         order.setTotalPrice(0);
 
-        // 주문 상품 추가 및 재고 확인/감소
+        // 주문 상품 재고 확인을 먼저 수행
+        Map<UUID, ProductDto> productMap = new HashMap<>();
         for (OrderRequestDto.OrderProductDto productDto : requestDto.getProducts()) {
-            // 상품 정보 조회
-            ProductDto product;
             try {
-                product = companyClient.getProductById(productDto.getProductId()).getData();
+                ProductDto product = companyClient.getProductById(productDto.getProductId()).getData();
+                productMap.put(productDto.getProductId(), product);
+
+                // 재고 확인
+                if (product.getQuantity() < productDto.getQuantity()) {
+                    throw new CustomConflictException("상품 재고가 부족합니다. 상품: " + product.getName() +
+                            ", 현재 재고: " + product.getQuantity() + ", 요청 수량: " + productDto.getQuantity());
+                }
+
             } catch (Exception e) {
-                throw new CustomConflictException("상품 정보 조회 중 오류가 발생했습니다: " + e.getMessage());
+                if (!(e instanceof CustomConflictException)) {
+                    throw new CustomConflictException("상품 정보 조회 중 오류가 발생했습니다: " + e.getMessage());
+                }
+                throw e;
             }
+        }
 
-            // 재고 확인
-            if (product.getQuantity() < productDto.getQuantity()) {
-                throw new CustomConflictException("상품 재고가 부족합니다. 상품: " + product.getName() +
-                        ", 현재 재고: " + product.getQuantity() + ", 요청 수량: " + productDto.getQuantity());
+        // 주문 상품 생성 및 재고 감소
+        List<OrderProduct> successfullyAddedProducts = new ArrayList<>();
+        try {
+            for (OrderRequestDto.OrderProductDto productDto : requestDto.getProducts()) {
+                ProductDto product = productMap.get(productDto.getProductId());
+
+                // 단가 계산 시 0으로 나누기 방지
+                int quantity = productDto.getQuantity();
+                int unitPrice = quantity > 0 ? productDto.getTotalPrice() / quantity : 0;
+
+                // 주문 상품 생성
+                OrderProduct orderProduct = orderDomainService.createOrderProduct(
+                        productDto.getProductId(),
+                        quantity,
+                        unitPrice
+                );
+                order.addOrderProduct(orderProduct);
+                successfullyAddedProducts.add(orderProduct);
+
+                // 재고 감소
+                try {
+                    ProductRequestDto updateRequest = ProductRequestDto.builder()
+                            .companyId(product.getCompanyId())
+                            .name(product.getName())
+                            .description(product.getDescription())
+                            .price(product.getPrice())
+                            .quantity(product.getQuantity() - quantity)
+                            .build();
+
+                    companyClient.updateProduct(productDto.getProductId(), updateRequest);
+                } catch (Exception e) {
+                    // 롤백을 위해 예외를 던짐
+                    throw new CustomConflictException("상품 재고 업데이트 중 오류가 발생했습니다: " + e.getMessage());
+                }
             }
-
-            // 주문 상품 생성
-            OrderProduct orderProduct = orderDomainService.createOrderProduct(
-                    productDto.getProductId(),
-                    productDto.getQuantity(),
-                    productDto.getTotalPrice() / productDto.getQuantity() // 단가 계산
-            );
-            order.addOrderProduct(orderProduct);
-
-            // 재고 감소
-            try {
-                ProductRequestDto updateRequest = ProductRequestDto.builder()
-                        .companyId(product.getCompanyId())
-                        .name(product.getName())
-                        .description(product.getDescription())
-                        .price(product.getPrice())
-                        .quantity(product.getQuantity() - productDto.getQuantity())
-                        .build();
-
-                companyClient.updateProduct(productDto.getProductId(), updateRequest);
-            } catch (Exception e) {
-                throw new CustomConflictException("상품 재고 업데이트 중 오류가 발생했습니다: " + e.getMessage());
-            }
+        } catch (Exception e) {
+            // 문제 발생 시 이미 처리된 주문 상품들의 재고 복원
+            rollbackInventory(successfullyAddedProducts, productMap);
+            throw e;
         }
 
         // 총 가격 계산
@@ -107,6 +128,7 @@ public class OrderService {
 
         Order savedOrder = orderRepository.save(order);
 
+        // 주문 생성 이벤트 발행
         OrderCreatedEvent event = OrderCreatedEvent.builder()
                 .orderId(savedOrder.getOrderId())
                 .hubId(savedOrder.getHubId())
@@ -117,41 +139,140 @@ public class OrderService {
 
         kafkaTemplate.send(KafkaTopics.ORDER_CREATED, event);
 
-        sendOrderCreatedSlackNotification(savedOrder);
+        // 슬랙 알림을 비동기로 전송
+        sendOrderCreatedSlackNotificationAsync(savedOrder);
 
         return OrderResponseDto.from(savedOrder);
     }
 
-    // 슬랙 알림을 위한 이벤트 발행 메서드
-    private void sendOrderCreatedSlackNotification(Order order) {
+    // 재고 롤백 메서드
+    private void rollbackInventory(List<OrderProduct> products, Map<UUID, ProductDto> productMap) {
+        for (OrderProduct orderProduct : products) {
+            try {
+                ProductDto product = productMap.get(orderProduct.getProductId());
+                if (product != null) {
+                    ProductRequestDto restoreRequest = ProductRequestDto.builder()
+                            .companyId(product.getCompanyId())
+                            .name(product.getName())
+                            .description(product.getDescription())
+                            .price(product.getPrice())
+                            .quantity(product.getQuantity()) // 원래 수량으로 복원
+                            .build();
+
+                    companyClient.updateProduct(orderProduct.getProductId(), restoreRequest);
+                    log.info("상품 ID: {}의 재고를 원상복구했습니다.", orderProduct.getProductId());
+                }
+            } catch (Exception e) {
+                log.error("상품 ID: {}의 재고 롤백 중 오류 발생: {}", orderProduct.getProductId(), e.getMessage());
+                // 롤백 중 오류가 발생해도 계속 진행
+            }
+        }
+    }
+
+    // 슬랙 알림을 위한 비동기 이벤트 발행 메서드
+    @Async
+    public void sendOrderCreatedSlackNotificationAsync(Order order) {
+        // 배송 ID가 null인 경우 슬랙 알림을 보내지 않음
+        if (order.getDeliverId() == null) {
+            log.info("배송 ID가 없어 슬랙 알림을 건너뜁니다. 주문 ID: {}", order.getOrderId());
+            return;
+        }
+
         try {
             // 업체 정보 조회
             CompanyDto company = companyClient.getCompanyById(order.getCompanyId()).getData();
+            if (company == null) {
+                log.error("주문 ID: {}에 대한 업체 정보를 찾을 수 없습니다.", order.getOrderId());
+                return;
+            }
+
+            // 주문 상품이 없는 경우 처리
+            if (order.getOrderProducts() == null || order.getOrderProducts().isEmpty()) {
+                log.error("주문 ID: {}에 대한 상품 정보가 없습니다.", order.getOrderId());
+                return;
+            }
 
             // 상품 정보 조회 - 첫 번째 상품만 예시로 표시
             OrderProduct firstProduct = order.getOrderProducts().get(0);
-            ProductDto product = companyClient.getProductById(firstProduct.getProductId()).getData();
+            ProductDto product;
+            try {
+                product = companyClient.getProductById(firstProduct.getProductId()).getData();
+                if (product == null) {
+                    log.error("상품 ID: {}에 대한 정보를 찾을 수 없습니다.", firstProduct.getProductId());
+                    return;
+                }
+            } catch (Exception e) {
+                log.error("상품 정보 조회 중 오류 발생: {}", e.getMessage());
+                return;
+            }
 
-            // 배송 경로 정보 조회
-            DeliveryDto delivery = deliveryClient.getDelivery(order.getDeliverId()).getData();
+            // 배송 정보 조회
+            DeliveryDto delivery;
+            try {
+                delivery = deliveryClient.getDelivery(order.getDeliverId()).getData();
+                if (delivery == null) {
+                    log.error("배송 ID: {}에 대한 정보를 찾을 수 없습니다.", order.getDeliverId());
+                    return;
+                }
+
+                // delivery의 필수 필드 검증
+                if (delivery.getStartHubId() == null) {
+                    log.error("배송 정보에 출발 허브 ID가 없습니다. 배송 ID: {}", order.getDeliverId());
+                    return;
+                }
+
+                if (delivery.getDelivererId() == null) {
+                    log.error("배송 정보에 배송원 ID가 없습니다. 배송 ID: {}", order.getDeliverId());
+                    return;
+                }
+            } catch (Exception e) {
+                log.error("배송 정보 조회 중 오류 발생: {}", e.getMessage());
+                return;
+            }
 
             // 허브 정보 조회
-            HubDto startHub = hubClient.getHubById(delivery.getStartHubId()).getData();
+            HubDto startHub;
+            try {
+                startHub = hubClient.getHubById(delivery.getStartHubId()).getData();
+                if (startHub == null) {
+                    log.error("허브 ID: {}에 대한 정보를 찾을 수 없습니다.", delivery.getStartHubId());
+                    return;
+                }
+            } catch (Exception e) {
+                log.error("허브 정보 조회 중 오류 발생: {}", e.getMessage());
+                return;
+            }
 
-            // 허브 경로 정보 조회
+            // 허브 경로 정보 조회 (실제 구현으로 대체 필요)
             List<String> viaHubs = new ArrayList<>();
-            // TODO: 배송 경로 정보를 조회하여 허브 경로 목록 설정
-            viaHubs.add("대전광역시 센터");
-            viaHubs.add("부산광역시 센터");
+            try {
+                // TODO: 실제 배송 경로 정보를 조회하여 허브 경로 목록 설정
+                // 하드코딩된 값 대신 실제 경로 조회 로직 구현 필요
+                viaHubs.add("중간 경유지");
+            } catch (Exception e) {
+                log.error("허브 경로 정보 조회 중 오류 발생: {}", e.getMessage());
+                // 경로 정보는 필수가 아니므로 계속 진행
+            }
 
             // 배송 담당자 정보 조회
-            DeliverUserDto deliverer = userClient.getDeliverUserById(delivery.getDelivererId()).getData();
+            DeliverUserDto deliverer;
+            try {
+                deliverer = userClient.getDeliverUserById(delivery.getDelivererId()).getData();
+                if (deliverer == null) {
+                    log.error("배송원 ID: {}에 대한 정보를 찾을 수 없습니다.", delivery.getDelivererId());
+                    return;
+                }
+            } catch (Exception e) {
+                log.error("배송원 정보 조회 중 오류 발생: {}", e.getMessage());
+                return;
+            }
 
+            // 슬랙 알림 이벤트 생성 및 발송
             OrderCreatedForSlackEvent event = OrderCreatedForSlackEvent.builder()
                     .orderId(order.getOrderId())
                     .orderNumber(order.getOrderId().toString().substring(0, 8)) // 간략화된 주문번호
                     .customerName(company.getCompanyName())
-                    .customerEmail("example@company.com") // 예시 이메일
+                    .customerEmail(company.getUserId() + "@delivery.com") // 예시 이메일 대신 사용자 ID 기반 생성
                     .productInfo(product.getName() + " " + firstProduct.getTotalQuantity() + "박스")
                     .requestInfo(order.getOrderRequest())
                     .startHub(startHub.getName())
@@ -163,7 +284,6 @@ public class OrderService {
                     .build();
 
             kafkaTemplate.send(KafkaTopics.ORDER_CREATED_FOR_SLACK, event);
-
             log.info("주문 생성 슬랙 알림 이벤트 발행 완료. 주문 ID: {}", order.getOrderId());
         } catch (Exception e) {
             log.error("주문 생성 슬랙 알림 이벤트 발행 중 오류 발생: {}", e.getMessage(), e);
@@ -268,7 +388,7 @@ public class OrderService {
                 DeliveryDto deliveryInfo = deliveryClient.getDelivery(order.getDeliverId()).getData();
 
                 // 배송 상태가 대기 중이 아니면 수정 불가
-                if (!deliveryInfo.getStatus().equals("WAITING_AT_HUB")) {
+                if (deliveryInfo != null && !deliveryInfo.getStatus().equals("WAITING_AT_HUB")) {
                     throw new CustomConflictException("배송이 이미 진행 중이므로 주문을 수정할 수 없습니다.");
                 }
             } catch (Exception e) {
@@ -279,16 +399,30 @@ public class OrderService {
             }
         }
 
-        // 주문 정보 업데이트
-        if (updateDto.getDeliverId() != null && updateDto.getHubId() != null &&
-                updateDto.getCompanyId() != null) {
+        // 주문 정보 업데이트 - 개별 필드 업데이트 허용
+        UUID deliverId = updateDto.getDeliverId() != null ? updateDto.getDeliverId() : order.getDeliverId();
+        UUID hubId = updateDto.getHubId() != null ? updateDto.getHubId() : order.getHubId();
+        UUID companyId = updateDto.getCompanyId() != null ? updateDto.getCompanyId() : order.getCompanyId();
+        String orderRequest = updateDto.getOrderRequest() != null ? updateDto.getOrderRequest() : order.getOrderRequest();
+
+        // 배송 마감일이 변경될 경우에만 업데이트
+        if (updateDto.getDeliveryDeadline() != null) {
             orderDomainService.updateOrderInfo(
                     order,
-                    updateDto.getDeliverId(),
-                    updateDto.getHubId(),
-                    updateDto.getCompanyId(),
-                    updateDto.getOrderRequest(),
+                    deliverId,
+                    hubId,
+                    companyId,
+                    orderRequest,
                     updateDto.getDeliveryDeadline()
+            );
+        } else {
+            orderDomainService.updateOrderInfo(
+                    order,
+                    deliverId,
+                    hubId,
+                    companyId,
+                    orderRequest,
+                    order.getDeliveryDeadline()
             );
         }
 
@@ -299,71 +433,129 @@ public class OrderService {
 
         // 주문 상품 업데이트 (재고 조정 포함)
         if (updateDto.getProducts() != null && !updateDto.getProducts().isEmpty()) {
-            // 기존 주문 상품의 재고 복원
-            for (OrderProduct orderProduct : order.getOrderProducts()) {
-                try {
-                    ProductDto product = companyClient.getProductById(orderProduct.getProductId()).getData();
+            Map<UUID, ProductDto> productMap = new HashMap<>();
+            List<OrderProduct> successfullyRestoredProducts = new ArrayList<>();
 
-                    ProductRequestDto restoreRequest = ProductRequestDto.builder()
-                            .companyId(product.getCompanyId())
-                            .name(product.getName())
-                            .description(product.getDescription())
-                            .price(product.getPrice())
-                            .quantity(product.getQuantity() + orderProduct.getTotalQuantity())
-                            .build();
+            try {
+                // 1. 기존 주문 상품의 재고 복원
+                for (OrderProduct orderProduct : order.getOrderProducts()) {
+                    try {
+                        ProductDto product = companyClient.getProductById(orderProduct.getProductId()).getData();
+                        productMap.put(orderProduct.getProductId(), product);
 
-                    companyClient.updateProduct(orderProduct.getProductId(), restoreRequest);
-                } catch (Exception e) {
-                    throw new CustomConflictException("상품 재고 복원 중 오류가 발생했습니다: " + e.getMessage());
-                }
-            }
+                        ProductRequestDto restoreRequest = ProductRequestDto.builder()
+                                .companyId(product.getCompanyId())
+                                .name(product.getName())
+                                .description(product.getDescription())
+                                .price(product.getPrice())
+                                .quantity(product.getQuantity() + orderProduct.getTotalQuantity())
+                                .build();
 
-            // 새로운 주문 상품 목록 생성
-            List<OrderProduct> newProducts = new ArrayList<>();
-
-            // 새로운 주문 상품에 대한 재고 확인 및 차감
-            for (OrderUpdateDto.OrderProductDto productDto : updateDto.getProducts()) {
-                try {
-                    ProductDto product = companyClient.getProductById(productDto.getProductId()).getData();
-
-                    // 재고 확인
-                    if (product.getQuantity() < productDto.getQuantity()) {
-                        throw new CustomConflictException("상품 재고가 부족합니다. 상품: " + product.getName() +
-                                ", 현재 재고: " + product.getQuantity() + ", 요청 수량: " + productDto.getQuantity());
+                        companyClient.updateProduct(orderProduct.getProductId(), restoreRequest);
+                        successfullyRestoredProducts.add(orderProduct);
+                    } catch (Exception e) {
+                        // 실패한 경우 롤백을 위해 예외를 던짐
+                        throw new CustomConflictException("상품 재고 복원 중 오류가 발생했습니다: " + e.getMessage());
                     }
+                }
 
-                    // 재고 감소
-                    ProductRequestDto updateRequest = ProductRequestDto.builder()
-                            .companyId(product.getCompanyId())
-                            .name(product.getName())
-                            .description(product.getDescription())
-                            .price(product.getPrice())
-                            .quantity(product.getQuantity() - productDto.getQuantity())
-                            .build();
+                // 2. 새로운 주문 상품 목록 생성
+                List<OrderProduct> newProducts = new ArrayList<>();
+                List<OrderUpdateDto.OrderProductDto> successfullyCheckedProducts = new ArrayList<>();
 
-                    companyClient.updateProduct(productDto.getProductId(), updateRequest);
+                // 3. 새로운 주문 상품들의 재고 확인
+                for (OrderUpdateDto.OrderProductDto productDto : updateDto.getProducts()) {
+                    try {
+                        ProductDto product = companyClient.getProductById(productDto.getProductId()).getData();
+                        if (!productMap.containsKey(productDto.getProductId())) {
+                            productMap.put(productDto.getProductId(), product);
+                        }
 
-                    // 새 주문 상품 생성
-                    OrderProduct orderProduct = orderDomainService.createOrderProduct(
-                            productDto.getProductId(),
-                            productDto.getQuantity(),
-                            productDto.getTotalPrice() / productDto.getQuantity() // 단가 계산
-                    );
-                    newProducts.add(orderProduct);
-                } catch (Exception e) {
-                    if (!(e instanceof CustomConflictException)) {
+                        // 재고 확인
+                        if (product.getQuantity() < productDto.getQuantity()) {
+                            throw new CustomConflictException("상품 재고가 부족합니다. 상품: " + product.getName() +
+                                    ", 현재 재고: " + product.getQuantity() + ", 요청 수량: " + productDto.getQuantity());
+                        }
+
+                        successfullyCheckedProducts.add(productDto);
+                    } catch (Exception e) {
+                        if (!(e instanceof CustomConflictException)) {
+                            throw new CustomConflictException("상품 정보 처리 중 오류가 발생했습니다: " + e.getMessage());
+                        }
+                        throw e;
+                    }
+                }
+
+                // 4. 새로운 주문 상품에 대한 재고 차감 및 주문 상품 생성
+                for (OrderUpdateDto.OrderProductDto productDto : successfullyCheckedProducts) {
+                    try {
+                        ProductDto product = productMap.get(productDto.getProductId());
+
+                        // 재고 감소
+                        ProductRequestDto updateRequest = ProductRequestDto.builder()
+                                .companyId(product.getCompanyId())
+                                .name(product.getName())
+                                .description(product.getDescription())
+                                .price(product.getPrice())
+                                .quantity(product.getQuantity() - productDto.getQuantity())
+                                .build();
+
+                        companyClient.updateProduct(productDto.getProductId(), updateRequest);
+
+                        // 단가 계산 시 0으로 나누기 방지
+                        int quantity = productDto.getQuantity();
+                        int unitPrice = quantity > 0 ? productDto.getTotalPrice() / quantity : 0;
+
+                        // 새 주문 상품 생성
+                        OrderProduct orderProduct = orderDomainService.createOrderProduct(
+                                productDto.getProductId(),
+                                quantity,
+                                unitPrice
+                        );
+                        newProducts.add(orderProduct);
+                    } catch (Exception e) {
                         throw new CustomConflictException("상품 정보 처리 중 오류가 발생했습니다: " + e.getMessage());
                     }
-                    throw e;
                 }
-            }
 
-            orderDomainService.updateOrderProducts(order, newProducts);
+                // 5. 주문 상품 업데이트
+                orderDomainService.updateOrderProducts(order, newProducts);
+
+            } catch (Exception e) {
+                // 오류 발생 시 재고 롤백: 복원된 재고는 다시 차감, 차감된 재고는 다시 복원
+                rollbackUpdateInventory(successfullyRestoredProducts, productMap);
+                throw e;
+            }
         }
 
         Order savedOrder = orderRepository.save(order);
 
         return OrderResponseDto.from(savedOrder);
+    }
+
+    // 주문 업데이트 시 재고 롤백 메서드
+    private void rollbackUpdateInventory(List<OrderProduct> restoredProducts, Map<UUID, ProductDto> productMap) {
+        for (OrderProduct orderProduct : restoredProducts) {
+            try {
+                ProductDto originalProduct = productMap.get(orderProduct.getProductId());
+                if (originalProduct != null) {
+                    // 다시 원래 상태로 되돌리기 (재고 차감)
+                    ProductRequestDto rollbackRequest = ProductRequestDto.builder()
+                            .companyId(originalProduct.getCompanyId())
+                            .name(originalProduct.getName())
+                            .description(originalProduct.getDescription())
+                            .price(originalProduct.getPrice())
+                            .quantity(originalProduct.getQuantity() - orderProduct.getTotalQuantity())
+                            .build();
+
+                    companyClient.updateProduct(orderProduct.getProductId(), rollbackRequest);
+                    log.info("상품 ID: {}의 재고를 롤백했습니다.", orderProduct.getProductId());
+                }
+            } catch (Exception e) {
+                log.error("상품 ID: {}의 재고 롤백 중 오류 발생: {}", orderProduct.getProductId(), e.getMessage());
+                // 롤백 중 오류가 발생해도 계속 진행
+            }
+        }
     }
 
     /**
@@ -389,7 +581,7 @@ public class OrderService {
                 DeliveryDto deliveryInfo = deliveryClient.getDelivery(order.getDeliverId()).getData();
 
                 // 배송 상태가 대기 중이 아니면 삭제 불가
-                if (!deliveryInfo.getStatus().equals("WAITING_AT_HUB")) {
+                if (deliveryInfo != null && !deliveryInfo.getStatus().equals("WAITING_AT_HUB")) {
                     throw new CustomConflictException("배송이 이미 진행 중이므로 주문을 삭제할 수 없습니다.");
                 }
 
@@ -403,7 +595,19 @@ public class OrderService {
             }
         }
 
+        // 상품 정보 조회 및 저장
+        Map<UUID, ProductDto> productMap = new HashMap<>();
+        for (OrderProduct orderProduct : order.getOrderProducts()) {
+            try {
+                ProductDto product = companyClient.getProductById(orderProduct.getProductId()).getData();
+                productMap.put(orderProduct.getProductId(), product);
+            } catch (Exception e) {
+                throw new CustomConflictException("상품 정보 조회 중 오류가 발생했습니다: " + e.getMessage());
+            }
+        }
+
         // 주문 상품의 재고 복원
+        List<OrderProduct> successfullyRestoredProducts = new ArrayList<>();
         for (OrderProduct orderProduct : order.getOrderProducts()) {
             try {
                 ProductDto product = companyClient.getProductById(orderProduct.getProductId()).getData();
@@ -425,6 +629,31 @@ public class OrderService {
 
         orderRepository.delete(order);
         log.info("주문 삭제 완료: orderId={}", orderId);
+    }
+
+    // 삭제 시 재고 롤백 메서드
+    private void rollbackDeleteInventory(List<OrderProduct> restoredProducts, Map<UUID, ProductDto> productMap) {
+        for (OrderProduct orderProduct : restoredProducts) {
+            try {
+                ProductDto product = productMap.get(orderProduct.getProductId());
+                if (product != null) {
+                    // 다시 원래 상태로 되돌리기 (재고 차감)
+                    ProductRequestDto rollbackRequest = ProductRequestDto.builder()
+                            .companyId(product.getCompanyId())
+                            .name(product.getName())
+                            .description(product.getDescription())
+                            .price(product.getPrice())
+                            .quantity(product.getQuantity()) // 원래 수량으로 복원
+                            .build();
+
+                    companyClient.updateProduct(orderProduct.getProductId(), rollbackRequest);
+                    log.info("삭제 취소: 상품 ID: {}의 재고를 원상복구했습니다.", orderProduct.getProductId());
+                }
+            } catch (Exception e) {
+                log.error("삭제 취소: 상품 ID: {}의 재고 롤백 중 오류 발생: {}", orderProduct.getProductId(), e.getMessage());
+                // 롤백 중 오류가 발생해도 계속 진행
+            }
+        }
     }
 
     /**
