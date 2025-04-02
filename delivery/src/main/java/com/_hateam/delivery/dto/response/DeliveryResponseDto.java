@@ -19,12 +19,13 @@ public class DeliveryResponseDto {
     private String receiverName;
     private String receiverSlackId;
     private UUID deliverId;
+    private String deliverSlackId;
 
     @Builder
     public DeliveryResponseDto(UUID id, UUID orderId,
                                DeliveryStatus status, UUID startHubId, UUID endHubId,
                                String receiverAddress, String receiverName, String receiverSlackId,
-                               UUID deliverId) {
+                               UUID deliverId, String deliverSlackId) {
         this.id = id;
         this.orderId = orderId;
         this.status = status;
@@ -34,6 +35,7 @@ public class DeliveryResponseDto {
         this.receiverName = receiverName;
         this.receiverSlackId = receiverSlackId;
         this.deliverId = deliverId;
+        this.deliverSlackId = deliverSlackId;
     }
 
 
@@ -52,6 +54,7 @@ public class DeliveryResponseDto {
                 .receiverName(delivery.getReceiverName())
                 .receiverSlackId(delivery.getReceiverSlackId())
                 .deliverId(delivery.getDeliverId())
+                .deliverSlackId(delivery.getDeliverSlackId())
                 .build();
     }
 }
