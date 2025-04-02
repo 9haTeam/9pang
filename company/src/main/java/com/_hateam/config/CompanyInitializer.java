@@ -16,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.http.ResponseEntity;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -64,6 +65,7 @@ public class CompanyInitializer {
                 .toList();
     }
 
+    @CircuitBreaker(name = "hubService", fallbackMethod = "getRandomHubIdsFallback")
     @EventListener(ApplicationReadyEvent.class)
     @Transactional
     public void initTestData() {
