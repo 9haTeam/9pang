@@ -1,5 +1,7 @@
 package com._hateam.order.infrastructure.messaging;
 
+import com._hateam.common.constant.KafkaTopics;
+import com._hateam.common.event.DeliveryCreatedEvent;
 import com._hateam.common.event.DeliveryStatusChangedEvent;
 import com._hateam.order.application.service.OrderService;
 import com._hateam.order.domain.model.OrderStatus;
@@ -41,6 +43,23 @@ public class OrderMessageConsumer {
             }
         } catch (Exception e) {
             log.error("배송 상태 변경 처리 중 오류 발생: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 배송 생성 이벤트를 수신하여 주문에 배송 ID를 업데이트합니다.
+     *
+     * @param event 배송 생성 이벤트
+     */
+    @KafkaListener(topics = KafkaTopics.DELIVERY_CREATED)
+    public void handleDeliveryCreated(DeliveryCreatedEvent event) {
+        log.info("배송 생성 이벤트 수신: {}", event);
+
+        try {
+            orderService.updateDeliveryId(event.getOrderId(), event.getDeliveryId());
+            log.info("주문 ID: {}에 배송 ID: {} 연결 완료", event.getOrderId(), event.getDeliveryId());
+        } catch (Exception e) {
+            log.error("배송 생성 이벤트 처리 중 오류 발생: {}", e.getMessage(), e);
         }
     }
 }

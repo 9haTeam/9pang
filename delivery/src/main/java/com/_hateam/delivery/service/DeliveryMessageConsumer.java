@@ -15,30 +15,29 @@ public class DeliveryMessageConsumer {
     private final DeliveryService deliveryService;
     private final DeliveryKafkaService deliveryKafkaService;
 
-    // 주석 처리 - 로컬 개발 환경에서는 이 기능 비활성화
-    /*
     @KafkaListener(topics = KafkaTopics.ORDER_CREATED, groupId = "delivery_group")
-    public void handleDeliveryStatusChanged(OrderCreatedEvent event) {
-        log.info("주문생성 이벤트 수신: {}", event);
+    public void handleOrderCreated(OrderCreatedEvent event) {
+        log.info("주문 생성 이벤트 수신: {}", event);
 
         try {
-            // 배송 서비스를 통해 주문 생성 처리
-            deliveryService.registerDeliveryAuto(event);
+            // 배송 정보 자동 생성
+            log.info("배송 정보 생성 시작: 주문 ID={}", event.getOrderId());
+
+            // 배송 정보 생성
+            var delivery = deliveryService.registerDeliveryAuto(event);
+
+            // 배송 생성 이벤트 발행 - 주문 서비스에 배송 ID 전달
+            deliveryKafkaService.deliveryCreatedByKafka(delivery);
+
+            log.info("배송 정보 생성 및 이벤트 발행 완료: 주문 ID={}, 배송 ID={}",
+                    event.getOrderId(), delivery.getId());
 
         } catch(Exception e) {
-            log.error("배송 생성과정에서 오류 발생: {}", e.getMessage(), e);
-        }
-    }
-    */
+            // 실패에 대한 보상처리 - 로깅 강화
+            log.error("배송 생성 과정에서 오류 발생: 주문 ID={}, 오류={}",
+                    event.getOrderId(), e.getMessage(), e);
 
-    // 테스트용 메서드 추가
-    public void testHandleDeliveryEvent(OrderCreatedEvent event) {
-        log.info("테스트 주문생성 이벤트 처리: {}", event);
-        try {
-            deliveryService.registerDeliveryAuto(event);
-            log.info("테스트 배송 생성 성공");
-        } catch(Exception e) {
-            log.error("테스트 배송 생성과정에서 오류 발생: {}", e.getMessage(), e);
+            // TODO: 보상 트랜잭션 또는 실패 이벤트 발행 로직 추가
         }
     }
 }

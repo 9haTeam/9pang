@@ -20,7 +20,7 @@ public class DeliveryKafkaService {
     private final KafkaTemplate<String, KafkaEvent> kafkaTemplate;
 
     /**
-     * kafka 통한 상태 수정 메세지 - 로그만 남기고 실제 이벤트는 보내지 않음
+     * 배송 상태 변경 시 메시지 발행
      */
     public void orderUpdateByKafka(Delivery delivery) {
         DeliveryStatusChangedEvent event = DeliveryStatusChangedEvent.builder()
@@ -29,14 +29,13 @@ public class DeliveryKafkaService {
                 .newStatus(delivery.getStatus().name())
                 .statusChangedAt(LocalDateTime.now())
                 .build();
-
-        // 실제 Kafka 전송은 주석 처리하고 로그만 남김
-        log.info("주문상태 업데이트 이벤트(모의): {} - {}", delivery.getId(), delivery.getStatus());
-        // kafkaTemplate.send(KafkaTopics.DELIVERY_STATUS_CHANGED, KafkaTopics.DELIVERY_STATUS_CHANGED, event);
+        kafkaTemplate.send(KafkaTopics.DELIVERY_STATUS_CHANGED, KafkaTopics.DELIVERY_STATUS_CHANGED, event);
+        log.info("배송 상태 변경 이벤트 발행 완료: 배송 ID={}, 주문 ID={}, 상태={}",
+                delivery.getId(), delivery.getOrderId(), delivery.getStatus());
     }
 
     /**
-     * kafka 통한 배송 생성 메세지 - 로그만 남기고 실제 이벤트는 보내지 않음
+     * 배송 생성 시 메시지 발행
      */
     public void deliveryCreatedByKafka(Delivery delivery) {
         DeliveryCreatedEvent deliveryCreatedEvent = DeliveryCreatedEvent.builder()
@@ -45,9 +44,7 @@ public class DeliveryKafkaService {
                 .status(delivery.getStatus().name())
                 .build();
 
-        // 실제 Kafka 전송은 주석 처리하고 로그만 남김
-        log.info("배송 생성 이벤트(모의): {} - {} - {}",
-                delivery.getId(), delivery.getOrderId(), delivery.getStatus());
-        // kafkaTemplate.send(KafkaTopics.DELIVERY_CREATED, KafkaTopics.DELIVERY_CREATED, deliveryCreatedEvent);
+        kafkaTemplate.send(KafkaTopics.DELIVERY_CREATED, KafkaTopics.DELIVERY_CREATED, deliveryCreatedEvent);
+        log.info("배송 생성 이벤트 발행 완료: 배송 ID={}, 주문 ID={}", delivery.getId(), delivery.getOrderId());
     }
 }

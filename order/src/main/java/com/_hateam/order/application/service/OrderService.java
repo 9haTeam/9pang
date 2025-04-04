@@ -673,4 +673,30 @@ public class OrderService {
 
         log.info("주문 상태 업데이트 완료: orderId={}, newStatus={}", orderId, newStatus);
     }
+
+    /**
+     * 배송 ID를 주문 정보에 업데이트합니다. (Kafka Consumer에서 사용)
+     *
+     * @param orderId    주문 ID
+     * @param deliveryId 배송 ID
+     * @throws CustomNotFoundException 주문이 존재하지 않는 경우
+     */
+    @Transactional
+    public void updateDeliveryId(UUID orderId, UUID deliveryId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new CustomNotFoundException("주문을 찾을 수 없습니다. ID: " + orderId));
+
+        // 배송 ID 업데이트
+        orderDomainService.updateOrderInfo(
+                order,
+                deliveryId,
+                order.getHubId(),
+                order.getCompanyId(),
+                order.getOrderRequest(),
+                order.getDeliveryDeadline()
+        );
+
+        orderRepository.save(order);
+        log.info("주문 ID: {}에 배송 ID: {} 연결 완료", orderId, deliveryId);
+    }
 }
