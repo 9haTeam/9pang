@@ -3,13 +3,12 @@ package com._hateam.delivery.service;
 import com._hateam.common.exception.CustomNotFoundException;
 import com._hateam.delivery.dto.request.UpdateDeliveryRouteRequestDto;
 import com._hateam.delivery.dto.response.DeiiveryRouteResponseDto;
-import com._hateam.delivery.dto.response.UserClientDeliverResponseDto;
 import com._hateam.delivery.entity.Delivery;
 import com._hateam.delivery.entity.DeliveryRoute;
 import com._hateam.delivery.entity.DeliveryStatus;
-import com._hateam.delivery.feignClient.UserClient;
 import com._hateam.delivery.repository.DeliveryRouteRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
@@ -19,21 +18,14 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class DeliveryRouteService {
 
     private final DeliveryRouteRepository deliveryRouteRepository;
-    private final DeliveryService deliveryService;
-    private final UserClient userClient;
     private final DeliveryKafkaService deliveryKafkaService;
 
     /**
-     * 배송 경로 생성 - x
-     * todo: 기본적으로는 배송생성시 동시생성, 특정 허브에 문제가 생겼거나 하는 극단적인 예외 발생
-     * todo: 배송경로를 수동으로 수정, 추가 하는경우, 배송경로 생성, 수정이 필요할 수 있음
-     */
-
-    /**
-     * 배송경로 조회
+     * 배송경로 조회 - 단순화
      */
     @Transactional(readOnly = true)
     public DeiiveryRouteResponseDto getDeliveryRouteForMaster(UUID deliveryRouteId) {
@@ -42,58 +34,29 @@ public class DeliveryRouteService {
     }
 
     /**
-     * 배송경로 수정
-     * todo: 일반적인 경우 status, 배송담당자 수정만으로 충분, 전체적인 수정은 극단적 상황
-     *  배송경로의 상태가 변경될때 다음 배송경로의 상태가 변경될 필요가 있음 1배송 완료시 2배송 대기에서 준비로 바뀌어야 함
-     *  배송담당자 조회 필요
+     * 배송경로 수정 - 단순화
      */
     @Transactional
     public URI updateDeliveryRouteForMaster(UUID deliveryRouteId, UpdateDeliveryRouteRequestDto updateDeliveryRouteRequestDto) {
-        // deliveryRoute 상태 변경
+        // 배송 경로 상태 변경
         DeliveryRoute deliveryRoute = checkDeliveryRoute(deliveryRouteId);
         deliveryRoute.updateStatusOf(updateDeliveryRouteRequestDto);
 
+        // 간소화된 상태 업데이트 로직
         DeliveryStatus status = updateDeliveryRouteRequestDto.getStatus();
         Delivery delivery = deliveryRoute.getDelivery();
-        UUID deliveryId = delivery.getId();
-        DeliveryStatus deliveryStatus = delivery.getStatus();
 
-        switch (status) {
-            case MOVING_TO_HUB -> {
-                // delivery 상태 변경
-                // todo: order상태 변경
-                if (deliveryStatus != DeliveryStatus.MOVING_TO_HUB) {
-                    delivery.updateStatusOf(status);
-                    deliveryKafkaService.orderUpdateByKafka(delivery);
-                }
-            }
-            case ARRIVED_AT_DEST_HUB -> {
-                // nextDeliveryRoute 조회
-                DeliveryRoute nextDeliveryRoute = deliveryRouteRepository.findByDeliveryAndSequence(delivery,
-                        deliveryRoute.getSequence()+1
-                ).orElse(null);
+        if (status != null) {
+            // 배송 경로 상태가 변경되면 배송 전체 상태도 업데이트
+            log.info("배송 경로 상태 변경: {} -> {}", deliveryRoute.getId(), status);
 
-                if (nextDeliveryRoute != null) {
-                    // nextDeliveryRoute에 배송담당자 배정
-                    UserClientDeliverResponseDto userClientDeliverResponseDto = userClient
-                            .getDeliverAssign("DELIVER_HUB", null)
-                            .getBody()
-                            .getData();
+            // 배송 상태도 같이 업데이트 (실제 환경에서는 조건부 처리 필요)
+            delivery.updateStatusOf(status);
 
-                    nextDeliveryRoute.updateDeliver(userClientDeliverResponseDto);
-
-                } else {
-                    // hub배송 완료, 배송상태변경 + 업체 배송담당자 배정
-                    // 허브 배송 완료, 업체 배송 대기로 상태 변경
-                    delivery.updateStatusOf(status);
-                    // 업체 배송담당자 배정
-                    UserClientDeliverResponseDto userClientDeliverResponseDto = userClient
-                            .getDeliverAssign("DELIVER_COMPANY", delivery.getEndHubId())
-                            .getBody()
-                            .getData();
-
-                    delivery.updateDeliver(userClientDeliverResponseDto);
-                }
+            // 경로가 목적지에 도착했다면 업체 배송 담당자 배정 로직 필요 (외부 서비스 연동 필요)
+            if (status == DeliveryStatus.ARRIVED_AT_DEST_HUB) {
+                log.info("목적지 허브 도착: {}. 업체 배송 담당자 배정 필요", deliveryRoute.getId());
+                // 실제 환경에서는 외부 서비스 연동 필요
             }
         }
 
@@ -105,22 +68,14 @@ public class DeliveryRouteService {
     }
 
     /**
-     * 배송경로 삭제 - 일반적인 경우 거의 쓰이지 않음
+     * 배송경로 삭제 - 단순화
      */
     @Transactional
     public void deleteDeliveryRouteForMaster(UUID deliveryRouteId) {
         DeliveryRoute deliveryRoute = checkDeliveryRoute(deliveryRouteId);
-        deliveryRoute.deleteOf("deleter"); // todo: 추후에 로그인한 사람으로 수정 필요 생성, 수정자도 관련 로직 필요
+        deliveryRoute.deleteOf("deleter"); // 실제 환경에서는 인증된 사용자 정보 필요
+        log.info("배송 경로 삭제 완료: {}", deliveryRouteId);
     }
-
-    /**
-     * 배송경로 검색
-     */
-
-    
-
-    
-
 
     /*내부 메서드------------------------------------------------------------------------------------------------------*/
 

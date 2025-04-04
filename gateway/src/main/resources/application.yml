@@ -38,6 +38,10 @@ spring:
           uri: lb://message-service
           predicates:
             - Path=/api/slack/**
+        - id: delivery-service
+          uri: lb://delivery-service
+          predicates:
+            - Path=/api/deliveries/**
       discovery:
         locator:
           enabled: true
