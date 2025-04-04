@@ -80,6 +80,10 @@ public class Order extends Timestamped {
         this.deliveryDeadline = deliveryDeadline;
     }
 
+    public void updateDeliveryId(UUID deliveryId) {
+        this.deliverId = deliveryId;
+    }
+
     // 총 가격 계산 및 업데이트
     public void calculateTotalPrice() {
         if (this.orderProducts == null || this.orderProducts.isEmpty()) {

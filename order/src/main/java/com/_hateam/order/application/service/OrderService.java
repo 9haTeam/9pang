@@ -683,10 +683,22 @@ public class OrderService {
      */
     @Transactional
     public void updateDeliveryId(UUID orderId, UUID deliveryId) {
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new CustomNotFoundException("주문을 찾을 수 없습니다. ID: " + orderId));
+        log.info("배송 ID 업데이트 시작: 주문 ID={}, 배송 ID={}", orderId, deliveryId);
 
-        // 배송 ID 업데이트
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> {
+                    log.error("주문을 찾을 수 없음: ID={}", orderId);
+                    return new CustomNotFoundException("주문을 찾을 수 없습니다. ID: " + orderId);
+                });
+
+        // 현재 배송 ID 기록
+        UUID oldDeliverId = order.getDeliverId();
+        log.info("기존 배송 ID: {}", oldDeliverId);
+
+        // 배송 ID 직접 설정 (추가)
+        order.updateDeliveryId(deliveryId);
+
+        // orderDomainService를 통한 업데이트도 유지
         orderDomainService.updateOrderInfo(
                 order,
                 deliveryId,
@@ -696,7 +708,8 @@ public class OrderService {
                 order.getDeliveryDeadline()
         );
 
-        orderRepository.save(order);
-        log.info("주문 ID: {}에 배송 ID: {} 연결 완료", orderId, deliveryId);
+        Order savedOrder = orderRepository.save(order);
+        log.info("배송 ID 업데이트 완료: 주문 ID={}, 이전 배송 ID={}, 새 배송 ID={}",
+                orderId, oldDeliverId, savedOrder.getDeliverId());
     }
 }

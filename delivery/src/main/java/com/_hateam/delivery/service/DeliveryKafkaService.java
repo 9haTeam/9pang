@@ -38,11 +38,21 @@ public class DeliveryKafkaService {
      * 배송 생성 시 메시지 발행
      */
     public void deliveryCreatedByKafka(Delivery delivery) {
+        // 필수 정보 확인
+        if (delivery.getId() == null || delivery.getOrderId() == null) {
+            log.error("배송 이벤트 발행 실패: 필수 ID 없음. 배송 ID={}, 주문 ID={}",
+                    delivery.getId(), delivery.getOrderId());
+            return;
+        }
+
         DeliveryCreatedEvent deliveryCreatedEvent = DeliveryCreatedEvent.builder()
                 .deliveryId(delivery.getId())
                 .orderId(delivery.getOrderId())
                 .status(delivery.getStatus().name())
                 .build();
+
+        // 디버그용 로그 추가
+        log.info("배송 생성 이벤트 내용: {}", deliveryCreatedEvent);
 
         kafkaTemplate.send(KafkaTopics.DELIVERY_CREATED, KafkaTopics.DELIVERY_CREATED, deliveryCreatedEvent);
         log.info("배송 생성 이벤트 발행 완료: 배송 ID={}, 주문 ID={}", delivery.getId(), delivery.getOrderId());

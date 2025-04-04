@@ -55,6 +55,12 @@ public class OrderMessageConsumer {
     public void handleDeliveryCreated(DeliveryCreatedEvent event) {
         log.info("배송 생성 이벤트 수신: {}", event);
 
+        // 필수 정보 확인
+        if (event.getOrderId() == null || event.getDeliveryId() == null) {
+            log.error("수신된 배송 이벤트에 필수 정보 누락: {}", event);
+            return;
+        }
+
         try {
             orderService.updateDeliveryId(event.getOrderId(), event.getDeliveryId());
             log.info("주문 ID: {}에 배송 ID: {} 연결 완료", event.getOrderId(), event.getDeliveryId());
