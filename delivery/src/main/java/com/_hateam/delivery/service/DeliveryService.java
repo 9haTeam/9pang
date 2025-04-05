@@ -27,7 +27,6 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Slf4j
 public class DeliveryService {
-
     private final DeliveryRepository deliveryRepository;
     private final DeliveryRepositoryCustom deliveryRepositoryCustom;
     private final DeliveryKafkaService deliveryKafkaService;
@@ -52,7 +51,16 @@ public class DeliveryService {
     }
 
     /**
-     * 간소화된 배송 생성 메서드
+     * 배송정보 상세 조회
+     */
+    @Transactional(readOnly = true)
+    public DeliveryResponseDto getDeliveryForMaster(UUID deliveryId) {
+        Delivery delivery = checkDelivery(deliveryId);
+        return DeliveryResponseDto.from(delivery);
+    }
+
+    /**
+     * 간소화된 배송 생성 메서드 - 이벤트 발행 추가
      */
     @Transactional
     public URI registerDeliveryForMaster(RegisterDeliveryRequestDto registerDeliveryRequestDto) {
@@ -60,7 +68,6 @@ public class DeliveryService {
         checkDeliveryByOrderId(registerDeliveryRequestDto.getOrderId());
 
         // 간소화된 객체 생성 (테스트용)
-        // 실제 환경에서는 외부 서비스 호출을 통해 데이터를 받아와야 함
         UUID orderId = registerDeliveryRequestDto.getOrderId();
 
         Delivery delivery = Delivery.builder()
@@ -93,8 +100,14 @@ public class DeliveryService {
 
         Delivery savedDelivery = deliveryRepository.save(delivery);
 
-        // Kafka 메시지는 로컬 개발 환경에서 오류 가능성이 있어 주석 처리
-        // deliveryKafkaService.deliveryCreatedByKafka(savedDelivery);
+        // Kafka 이벤트 발행
+        try {
+            deliveryKafkaService.deliveryCreatedByKafka(savedDelivery);
+            log.info("배송 생성 이벤트 발행 요청 완료: 배송 ID={}, 주문 ID={}",
+                    savedDelivery.getId(), savedDelivery.getOrderId());
+        } catch (Exception e) {
+            log.error("배송 생성 이벤트 발행 실패: {}", e.getMessage(), e);
+        }
 
         return ServletUriComponentsBuilder
                 .fromCurrentRequest()
@@ -104,8 +117,9 @@ public class DeliveryService {
     }
 
     /**
-     * order로 부터 message 수신시 배송생성 - 간소화
+     * order로 부터 message 수신시 배송생성 - 이벤트 발행 추가
      */
+    @Transactional
     public Delivery registerDeliveryAuto(com._hateam.common.event.OrderCreatedEvent event) {
         // 테스트용 간소화된 구현
         Delivery delivery = Delivery.builder()
@@ -133,16 +147,18 @@ public class DeliveryService {
 
         delivery.addDeliveyRouteListFrom(deliveryRouteList);
 
-        return deliveryRepository.save(delivery);
-    }
+        Delivery savedDelivery = deliveryRepository.save(delivery);
 
-    /**
-     * 배송정보 상세 조회
-     */
-    @Transactional(readOnly = true)
-    public DeliveryResponseDto getDeliveryForMaster(UUID deliveryId) {
-        Delivery delivery = checkDelivery(deliveryId);
-        return DeliveryResponseDto.from(delivery);
+        // 명시적으로 이벤트 발행
+        try {
+            deliveryKafkaService.deliveryCreatedByKafka(savedDelivery);
+            log.info("자동 배송 생성 이벤트 발행 완료: 배송 ID={}, 주문 ID={}",
+                    savedDelivery.getId(), savedDelivery.getOrderId());
+        } catch (Exception e) {
+            log.error("자동 배송 생성 이벤트 발행 실패: {}", e.getMessage(), e);
+        }
+
+        return savedDelivery;
     }
 
     /**
@@ -161,17 +177,21 @@ public class DeliveryService {
     }
 
     /**
-     * 배송 상태 수정 - 간소화
+     * 배송 상태 수정 - 이벤트 발행 추가
      */
     @Transactional
     public URI updateDeliveryStatus(UUID deliveryId, DeliveryStatus status) {
         Delivery delivery = checkDelivery(deliveryId);
         delivery.updateStatusOf(status);
 
-        // Kafka 이벤트 발행 로직 주석 처리 (로컬 개발 환경에서 오류 방지)
-        // if (status == DeliveryStatus.DELIVERY_COMPLETED) {
-        //     deliveryKafkaService.orderUpdateByKafka(delivery);
-        // }
+        // Kafka 이벤트 발행
+        try {
+            deliveryKafkaService.orderUpdateByKafka(delivery);
+            log.info("배송 상태 변경 이벤트 발행 요청 완료: 배송 ID={}, 주문 ID={}, 상태={}",
+                    delivery.getId(), delivery.getOrderId(), status);
+        } catch (Exception e) {
+            log.error("배송 상태 변경 이벤트 발행 실패: {}", e.getMessage(), e);
+        }
 
         return ServletUriComponentsBuilder
                 .fromCurrentRequest()
