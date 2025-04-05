@@ -695,8 +695,14 @@ public class OrderService {
         UUID oldDeliverId = order.getDeliverId();
         log.info("기존 배송 ID: {}", oldDeliverId);
 
-        // 배송 ID 직접 설정 (추가)
+        // 배송 ID 직접 설정
         order.updateDeliveryId(deliveryId);
+
+        // 상태 변경: 배송 ID가 처음 설정되면 IN_DELIVERY로 변경
+        if (oldDeliverId == null && deliveryId != null) {
+            order.updateStatus(OrderStatus.IN_DELIVERY);
+            log.info("배송 ID 설정과 함께 주문 상태를 IN_DELIVERY로 변경");
+        }
 
         // orderDomainService를 통한 업데이트도 유지
         orderDomainService.updateOrderInfo(
@@ -709,7 +715,7 @@ public class OrderService {
         );
 
         Order savedOrder = orderRepository.save(order);
-        log.info("배송 ID 업데이트 완료: 주문 ID={}, 이전 배송 ID={}, 새 배송 ID={}",
-                orderId, oldDeliverId, savedOrder.getDeliverId());
+        log.info("배송 ID 업데이트 완료: 주문 ID={}, 이전 배송 ID={}, 새 배송 ID={}, 상태={}",
+                orderId, oldDeliverId, savedOrder.getDeliverId(), savedOrder.getStatus());
     }
 }
