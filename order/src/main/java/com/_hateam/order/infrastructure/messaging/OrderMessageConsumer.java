@@ -17,15 +17,25 @@ public class OrderMessageConsumer {
 
     private final OrderService orderService;
 
-    @KafkaListener(topics = "${kafka.topics.delivery-status-changed}")
+    @KafkaListener(
+            topics = KafkaTopics.DELIVERY_STATUS_CHANGED,
+            groupId = "order-consumer-group",
+            containerFactory = "statusChangedListenerContainerFactory"
+    )
     public void handleDeliveryStatusChanged(DeliveryStatusChangedEvent event) {
         log.info("배송 상태 변경 이벤트 수신: {}", event);
 
         try {
+            if (event.getOrderId() == null) {
+                log.error("배송 상태 변경 이벤트에 주문 ID가 없습니다: {}", event);
+                return;
+            }
+
             // 배송 상태에 따라 주문 상태 업데이트
             switch (event.getNewStatus()) {
                 case "WAITING_AT_HUB":
                     // 배송 전
+                    orderService.updateOrderStatus(event.getOrderId(), OrderStatus.WAITING);
                     break;
                 case "MOVING_TO_HUB":
                 case "ARRIVED_AT_DEST_HUB":
@@ -41,6 +51,7 @@ public class OrderMessageConsumer {
                 default:
                     log.warn("알 수 없는 배송 상태: {}", event.getNewStatus());
             }
+            log.info("주문 ID: {}의 상태를 {}(으)로 업데이트했습니다.", event.getOrderId(), event.getNewStatus());
         } catch (Exception e) {
             log.error("배송 상태 변경 처리 중 오류 발생: {}", e.getMessage(), e);
         }
@@ -51,7 +62,11 @@ public class OrderMessageConsumer {
      *
      * @param event 배송 생성 이벤트
      */
-    @KafkaListener(topics = KafkaTopics.DELIVERY_CREATED)
+    @KafkaListener(
+            topics = KafkaTopics.DELIVERY_CREATED,
+            groupId = "order-consumer-group",
+            containerFactory = "deliveryCreatedListenerContainerFactory"
+    )
     public void handleDeliveryCreated(DeliveryCreatedEvent event) {
         log.info("배송 생성 이벤트 수신: {}", event);
 
