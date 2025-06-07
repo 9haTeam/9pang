@@ -32,7 +32,7 @@ public class OrderController {
     @PostMapping
     public ResponseEntity<ResponseDto<OrderResponseDto>> createOrder(
             @Valid @RequestBody OrderRequestDto requestDto) {
-        OrderResponseDto responseDto = orderService.createOrder(requestDto);
+        OrderResponseDto responseDto = orderService.sequenceCreateOrder(requestDto);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ResponseDto.success(responseDto));
     }
